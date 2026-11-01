@@ -12,6 +12,8 @@ power.key
 session.key
 filters.sqlite*
 suppressions/
+devices.sqlite*
+devices/
 events.sqlite*
 *.DB
 *.db

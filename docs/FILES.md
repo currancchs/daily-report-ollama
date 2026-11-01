@@ -46,6 +46,7 @@
 - `docs/SETUP.md`: complete prerequisites, configuration and commands.
 - `docs/POWER.md`: optional wake and shutdown setup.
 - `docs/FILTERS.md`: matching semantics, installation, verification and filter-store operations.
+- `src/device_inventory.py` and `docs/DEVICES.md`: observed device aliases, retirement, restoration and permanent exclusions without deleting events.
 - `docs/UPGRADE.md`: existing-install migration boundaries.
 - `docs/ARCHITECTURE.md`: implementation and dashboard roadmap.
 - `SECURITY.md`: data boundaries and publishing exclusions.

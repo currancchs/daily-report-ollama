@@ -96,13 +96,13 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'work') as temporary:
     assert first['home']['new_rows'] == 7 and first['home']['duplicate_rows'] == 1, first
     assert first['work']['new_rows'] == 8 and first['work']['duplicate_rows'] == 2, first
     registry = json.loads((coordinator / 'site-registry.json').read_text())
-    assert registry['sites']['home']['sources']['switch']['warnings']
+    assert registry['sites']['home']['sources']['switch']['notices']
     report = preview.collect(coordinator / 'events.sqlite', coordinator, 24, 0, 2,
                              now=NOW, registry=registry)
     assert report['sites']['home']['rows_in_window'] == 7
     assert report['sites']['work']['rows_in_window'] == 8
     assert 'NAS/connections' in report['sites']['home']['sources']
-    assert report['sites']['home']['sources']['switch']['warnings']
+    assert report['sites']['home']['sources']['switch']['notices']
     # Audit mode must expose every discovered source without calling Ollama or
     # replacing an existing preview report.
     unchanged = coordinator / 'preview.txt'
@@ -145,12 +145,14 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'work') as temporary:
     received_partial = collector.collect(coordinator, sites=('home',), getter=getter)
     assert received_partial['home']['status'] == 'partial'
     bad.unlink()
-    # Disappearance preserves previous source history and raises an explicit warning.
+    # Quiet historical sources stay visible without inventing a collection failure.
     disappeared = nas['home'] / 'homeassistant/SYNOSYSLOGDB_homeassistant.DB'
     disappeared.unlink()
     site_export.export_site(nas['home'], 'home', now=NOW)
     missing = collector.collect(coordinator, sites=('home',), getter=getter)
-    assert any('homeassistant' in warning for warning in missing['home']['warnings'])
+    assert missing['home']['status'] == 'complete', missing
+    absent = json.loads((coordinator/'site-registry.json').read_text())['sites']['home']['sources']['homeassistant']
+    assert absent['discovery_status']=='absent' and absent['notices'] and not absent['warnings']
     # Manifest path traversal must fail before download/import.
     malicious = dict(latest)
     malicious['assets'] = [dict(latest['assets'][0], file='../outside.zip')]

@@ -108,6 +108,9 @@ def message_template(value):
 def registry_export_check(info, now, max_age_hours):
     result = dict(info)
     result["warnings"] = list(info.get("warnings", []))
+    result['notices'] = list(info.get('notices', []))
+    if info.get('discovery_status') in ('historical', 'absent'):
+        return result
     stamp = info.get("exported_utc")
     if stamp is None:
         result["warnings"].append("No verified export timestamp for this source.")
@@ -219,7 +222,7 @@ def collect(history, base, hours, max_groups_per_site, freshness_hours, now=None
                 data["sources"][source] = check
                 data["rows_in_window"] += count
                 if not count:
-                    data["warnings"].append(source + ": no records in this report window; health unknown.")
+                    check.setdefault('notices', []).append('No recent qualifying messages; device health is unknown.')
                 if untimed:
                     data["warnings"].append(source + ": records without timestamps use first import time.")
                 limit = min(count, MAX_ROWS)
