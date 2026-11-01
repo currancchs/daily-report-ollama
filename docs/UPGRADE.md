@@ -2,7 +2,7 @@
 
 This package is a portable source release, not an automatic patch for an existing system. The first-install script refuses `/opt/ai-monitor` when it already exists.
 
-For Matt's working installation, publishing this source repository does not require reinstalling anything. Keep existing NAS tasks, schedules, Gmail configuration, pairing keys, and viewer access rules.
+For my working installation, publishing this source repository does not require reinstalling anything. Keep existing NAS tasks, schedules, Gmail configuration, pairing keys, and viewer access rules.
 
 For a deliberate future migration:
 

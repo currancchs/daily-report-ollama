@@ -1,6 +1,6 @@
 # Setup: two Synology sites, Linux coordinator, local Ollama
 
-These instructions install a **new** coordinator. Do not run the first-install script on an existing `/opt/ai-monitor` deployment; see [UPGRADE.md](UPGRADE.md). No changes to Matt's running coordinator are needed merely to publish this repository.
+These instructions install a **new** coordinator. Do not run the first-install script on an existing `/opt/ai-monitor` deployment; see [UPGRADE.md](UPGRADE.md). No changes to my running coordinator are needed merely to publish this repository.
 
 ## 1. Choose the machines and record settings
 
@@ -23,7 +23,7 @@ ollama run qwen3:8b "Reply with one short sentence."
 ollama ps
 ```
 
-Use `qwen3.6:27b` instead if reproducing Matt's model choice and your system supports it. The model must appear under exactly the configured name in `ollama list`.
+Use `qwen3.6:27b` instead if reproducing my model choice and your system supports it. The model must appear under exactly the configured name in `ollama list`.
 
 On Windows, quit Ollama from the tray, then set user environment variables in PowerShell:
 

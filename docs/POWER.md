@@ -85,4 +85,4 @@ sudo systemctl enable --now ai-monitor-wake.timer
 systemctl list-timers 'ai-monitor-*' --all
 ```
 
-The timer wakes at 03:30; NAS export is 03:40, build 04:00, optional email 05:00. The coordinator stays on. The guard considers verified report completion, not SMTP inbox delivery. Review its `last-result.json` for skip/block reasons. No power scripts were installed or armed on Matt's machines while preparing this release.
+The timer wakes at 03:30; NAS export is 03:40, build 04:00, optional email 05:00. The coordinator stays on. The guard considers verified report completion, not SMTP inbox delivery. Review its `last-result.json` for skip/block reasons. Publishing this source does not install or arm the optional power controls; configure them separately if you want to use them.

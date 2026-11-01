@@ -9,7 +9,7 @@ Work devices → Work Synology ┘                                        ↓
                                                 private viewer ← saved digest → optional Gmail
 ```
 
-This is a reusable adaptation of Matt Curran's setup, prepared October 31, 2026. Personal endpoints and hardware identifiers have been replaced with configuration. The original setup uses an RTX 3090 and `qwen3.6:27b`; this package defaults to `qwen3:8b` as a smaller configurable example. No model weights, live reports, NAS databases, passwords, or pairing keys are included.
+This is a reusable adaptation of my setup, prepared October 31, 2026. Personal endpoints and hardware identifiers have been replaced with configuration. The original setup uses an RTX 3090 and `qwen3.6:27b`; this package defaults to `qwen3:8b` as a smaller configurable example. No model weights, live reports, NAS databases, passwords, or pairing keys are included.
 
 ## Start here
 
