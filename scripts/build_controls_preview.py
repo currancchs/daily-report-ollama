@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory() as temporary:
             content=content.replace('href="/">Dashboard</a>', 'href="../dashboard/index.html">Dashboard</a>')
             for nav,target_name in [('/','report'),('/suppressed','suppressed'),('/filters','filters')]:
                 content=content.replace('href="'+nav+'"','href="'+target_name+'.html"')
+                content=content.replace('href="'+nav+'?','href="'+target_name+'.html?')
             content=re.sub(r'href="/ignore/[^\"]+"','href="ignore.html"',content)
             content=re.sub(r'href="/filters/[^\"]+/delete"','href="restore.html"',content)
             content=re.sub(r'<button\b','<button disabled',content)
