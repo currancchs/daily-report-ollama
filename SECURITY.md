@@ -13,3 +13,7 @@ The example HTML/JSON uses synthetic events and documentation addresses. Python 
 Model output does not execute commands or repair systems. Missing evidence is not proof of healthy devices. The optional power guard is separate and remains disabled until explicitly enabled after a Wake-on-LAN and signed-status check.
 
 Report potential vulnerabilities without attaching real log evidence or credentials to a public issue. Replace sensitive details with a minimal synthetic reproduction.
+
+Optional suppression controls add state-changing web forms. Anyone admitted by the viewer's network rules can manage filters; there is no separate user authentication. Keep the default loopback listener, or explicitly allow only trusted LAN/VPN clients. Do not port-forward this service to the Internet. Host/origin validation, CSRF tokens, SameSite cookies and escaped output protect form handling; they do not replace network access controls.
+
+The application is mounted at `/controls/` behind NGINX, with Gunicorn bound to loopback. It reads verified saved reports and writes only the suppression store under its systemd filesystem policy. It cannot run AI, send mail or modify imported history through a web action. Suppressed records remain in local history and may contain sensitive context. Never publish `filters.sqlite`, its WAL files, the filter audit, or `session.key`. Completed reports are immutable snapshots; changing filters does not retract a previously sent email.

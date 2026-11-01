@@ -240,3 +240,7 @@ sudo systemctl disable --now ai-monitor-build.timer ai-monitor-send.timer ai-mon
 ```
 
 This does not interrupt an already running service. Let it finish before changing source. Keep raw exports/caches restricted; redaction applies to newly imported/report-bound text and does not sanitize the NAS originals.
+
+## Optional issue filters
+
+After validating the daily report, follow [FILTERS.md](FILTERS.md) to add Ignore buttons, a suppressed-issues view and reversible filter management. The feature preserves the static dashboard/history and defaults to indefinite suppression until a filter is removed.

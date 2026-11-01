@@ -31,7 +31,10 @@ spec.loader.exec_module(core)
 _rollup_spec = importlib.util.spec_from_file_location('event_rollups', Path(__file__).with_name('event_rollups.py'))
 event_rollups = importlib.util.module_from_spec(_rollup_spec)
 _rollup_spec.loader.exec_module(event_rollups)
-VERSION = 'disk-balanced-v6'
+spec = importlib.util.spec_from_file_location('suppression_store', Path(__file__).with_name('suppression_rules.py'))
+filters = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(filters)
+VERSION = 'disk-balanced-v7-filters'
 DEFAULT_GROUP_BUDGET = 2000
 DEFAULT_ANALYSIS_SECONDS = 2700
 KERNEL_UPTIME = re.compile(r'^\[\s*\d{1,12}\.\d{1,9}\]\s+')
@@ -190,13 +193,26 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
     start, end = (now + 1 - hours * 3600, now + 1) if window is None else window
     if not isinstance(start, int) or not isinstance(end, int) or not 0 < end-start <= 168*3600 or end > now+1:
         raise ValueError('Invalid report window')
+    filter_error = None
+    try:
+        filter_path = filters.database_path(base)
+        if SETTINGS['controls_enabled'] and not filter_path.is_file():
+            raise FileNotFoundError('Configured suppression store is missing')
+        filter_snapshot = filters.snapshot(filter_path, now)
+    except Exception as error:
+        # Keep every log eligible when rules cannot be read; never silently hide data.
+        filter_snapshot = {'matcher': filters.MATCHER, 'evaluated_utc': now, 'revision': None, 'rules': []}
+        filter_error = 'Suppression filters could not be loaded; none were applied (' + type(error).__name__ + ').'
     report = {'status': 'preview', 'generator': VERSION, 'generated_utc': core.iso(now),
               'window_start': start, 'window_end_exclusive': end,
               'scope': 'All stored records in this window are scanned; AI reviews a prioritized sample balanced across sources.',
               'time_basis': 'NAS receive time, then event time, then first import time when both are missing.',
               'coverage_note': 'Counts describe imported records, not unique real-world actions. Related NAS streams can describe the same activity. Source silence is not proof of health.',
               'selection_policy': 'Up to five groups per nonempty source first; remaining slots choose critical groups, then round-robin flagged sources, then unflagged groups. Severity is ordered within each source; frequency and recency break ties.',
+              'suppression': {key: value for key, value in filter_snapshot.items() if key != 'rules'},
               'sites': {}}
+    report['suppression'].update(active_filters=len(filter_snapshot['rules']), error=filter_error,
+        policy='Exact recurring groups are excluded before AI selection. Filters are frozen at build time. Raw history is retained under the normal retention policy.')
     deadline = time.monotonic() + aggregation_timeout
     base.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.report-aggregate-', dir=str(base)) as temporary, \
@@ -228,7 +244,10 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
                     'rows_not_grouped': 0, 'malformed_rows': 0, 'prefix_timestamp_rows': 0,
                     'transfer_rollup_rows': 0, 'kernel_uptime_rows': 0, 'ha_check_announcement_rows': 0,
                     'family_rollup_rows': {}, 'family_groups_collapsed': 0,
-                    'batches_completed': 0, 'batches_attempted': 0}
+                    'batches_completed': 0, 'batches_attempted': 0,
+                    'suppressed_groups': [], 'suppressed_records': 0}
+            if filter_error:
+                data['warnings'].append(filter_error)
             if entry.get('status') != 'complete':
                 data['warnings'].append('Collection status: ' + str(entry.get('status', 'missing')))
             if not sources:
@@ -238,6 +257,7 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
                 check = core.registry_export_check(known.get(source, {
                     'exported_utc': None, 'warnings': ['Source exists in history but is missing from the current registry.']}), now, freshness_hours)
                 check.update(records=0, rows_scanned=0, malformed_rows=0, first_record=None, last_record=None,
+                             suppressed_records=0, suppressed_groups=0,
                              event_ahead_of_receive_over_5m=0, maximum_event_lead_seconds=0)
                 data['sources'][source] = check
                 stamp = 'COALESCE(r_utcsec,utcsec,first_seen_utc)'
@@ -275,8 +295,9 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
                                 identity += [rule]
                             key = hashlib.sha256(core.compact(identity).encode()).hexdigest()
                             priority, announcement = classify_priority(raw, message)
-                            payload = {'id': site + '-' + key[:16], 'source': source,
+                            payload = {'id': site + '-' + key[:16], 'source': source, 'suppression_key': key,
                                 'host': core.clean(raw.get('host') or raw.get('ip'), 100),
+                                'ip': core.clean(raw.get('ip'), 100), 'tag': core.clean(raw.get('tag'), 100),
                                 'program': core.clean(raw.get('prog'), 100),
                                 'reported_level': core.clean(raw.get('llevel'), 40),
                                 'reported_priority': core.clean(raw.get('prio'), 20),
@@ -311,6 +332,21 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
             report['sites'][site] = data
         scratch.commit()
         scratch.execute('CREATE INDEX selection ON grouped(site,source,priority,n DESC,last DESC,key)')
+        for rule in filter_snapshot['rules']:
+            row = scratch.execute('''SELECT key,priority,n,first,last,payload FROM grouped
+                WHERE key=? AND site=? AND source=?''', (rule['signature'], rule['site'], rule['source'])).fetchone()
+            if row is None:
+                continue
+            group = materialize(row)
+            add_rollup_evidence(scratch, group)
+            group['suppression_filter'] = {key: rule[key] for key in ('id', 'reason', 'created_utc', 'expires_utc')}
+            data = report['sites'][rule['site']]
+            data['suppressed_groups'].append(group)
+            data['suppressed_records'] += group['count']
+            check = data['sources'][rule['source']]
+            check['suppressed_records'] += group['count']
+            check['suppressed_groups'] += 1
+            scratch.execute('DELETE FROM grouped WHERE key=?', (rule['signature'],))
         for site, data in report['sites'].items():
             selected, effective = choose(scratch, site, data['sources'], budget)
             for group in selected:
@@ -322,10 +358,12 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
             data['requested_group_budget'] = budget
             data['effective_group_budget'] = effective
             data['groups_total'] = scratch.execute('SELECT COUNT(*) FROM grouped WHERE site=?', (site,)).fetchone()[0]
+            data['groups_total_before_suppression'] = data['groups_total'] + len(data['suppressed_groups'])
             data['omitted_groups'] = data['groups_total'] - len(selected)
             data['records_in_selected_groups'] = sum(group['count'] for group in selected)
-            data['records_outside_ai_selection'] = data['rows_in_window'] - data['records_in_selected_groups']
-            data['grouped_records'] = scratch.execute('SELECT COALESCE(SUM(n),0) FROM grouped WHERE site=?', (site,)).fetchone()[0]
+            data['records_outside_ai_selection'] = data['rows_in_window'] - data['suppressed_records'] - data['records_in_selected_groups']
+            data['eligible_records'] = scratch.execute('SELECT COALESCE(SUM(n),0) FROM grouped WHERE site=?', (site,)).fetchone()[0]
+            data['grouped_records'] = data['eligible_records'] + data['suppressed_records']
             if data['grouped_records'] + data['malformed_rows'] != data['rows_scanned']:
                 raise ValueError('Internal row accounting mismatch; report not published')
             data['flagged_groups_total'] = 0
@@ -360,6 +398,8 @@ def review_summary(report):
             'ha_check_announcement_rows': data.get('ha_check_announcement_rows', 0),
             'family_rollup_rows': data.get('family_rollup_rows', {}),
             'family_groups_collapsed': data.get('family_groups_collapsed', 0),
+            'suppressed_groups': len(data.get('suppressed_groups', [])),
+            'suppressed_records': data.get('suppressed_records', 0),
             'time_limit_reached': bool(data.get('review_limit_notes')),
             'ai_errors': data['ai_errors']}
     return result
@@ -456,12 +496,15 @@ def analyze(report, url, model, timeout, caller=core.call_ollama, max_runtime=DE
 def audit(report):
     return {'status': 'collection_audit', 'generator': VERSION, 'window_start_utc': core.iso(report['window_start']),
             'window_end_exclusive_utc': core.iso(report['window_end_exclusive']),
+            'suppression': report.get('suppression', {}),
             'sites': {site: {
                 **{key: data[key] for key in ('rows_in_window', 'rows_scanned', 'grouped_records', 'rows_not_grouped',
                     'groups_total', 'records_in_selected_groups', 'records_outside_ai_selection',
                     'flagged_groups_outside_ai_selection', 'transfer_rollup_rows', 'kernel_uptime_rows',
                     'ha_check_announcement_rows', 'family_rollup_rows', 'family_groups_collapsed', 'warnings')},
                 'groups_selected': len(data['groups']),
+                'suppressed_groups': len(data.get('suppressed_groups', [])),
+                'suppressed_records': data.get('suppressed_records', 0),
                 'sources': {source: {key: info[key] for key in ('records', 'groups_total', 'groups_selected',
                     'flagged_groups_outside_ai_selection', 'reported_critical_records', 'event_ahead_of_receive_over_5m',
                     'maximum_event_lead_seconds', 'warnings')}
@@ -491,9 +534,12 @@ def render(report, zone):
                   'Records scanned: ' + str(data['rows_scanned']) + '/' + str(data['rows_in_window']) +
                   '; ungrouped: ' + str(data['rows_not_grouped']) + '.',
                   'AI reviewed ' + str(len(assessed)) + '/' + str(data['groups_total']) +
-                  ' groups, representing ' + str(assessed_records) + '/' + str(data['rows_in_window']) + ' records.',
+                  ' eligible groups, representing ' + str(assessed_records) + '/' + str(data.get('eligible_records', data['rows_in_window'])) + ' eligible grouped records.',
                   'Not AI reviewed: ' + str(data['groups_total'] - len(assessed)) + ' groups; ' +
                   str(flagged_unreviewed) + ' have a severity/keyword flag. These flags are not confirmed incidents.']
+        lines.append('SUPPRESSED: ' + str(data.get('suppressed_records', 0)) + ' records in ' +
+                     str(len(data.get('suppressed_groups', []))) + ' recurring groups, excluded by your filters before AI review. '
+                     'Collection counts still include these records. Manage filters in the report viewer.')
         lines += ['COLLECTION: ' + core.clean(warning, 500) for warning in data['warnings']]
         lines += ['AI ERROR: ' + core.clean(error, 500) for error in data['ai_errors']]
         lines += ['REVIEW LIMIT: ' + core.clean(note, 500) for note in data.get('review_limit_notes', [])]

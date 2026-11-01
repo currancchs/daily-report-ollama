@@ -253,6 +253,8 @@ def build(base, force=False, now=None, collector=run_collection, checker=preflig
             progress.stage('grouping')
             report = daily.collect(Path(base) / 'events.sqlite', base, budget=GROUP_CAP_PER_SITE, now=current,
                                    registry=registry, aggregation_timeout=600, window=bounds)
+            if report.get('suppression', {}).get('error'):
+                warnings.append(report['suppression']['error'])
             report.update(report_kind='daily', report_date=day.isoformat(), pipeline_warnings=warnings)
             report['build_runtime_limit_seconds'] = BUILD_LIMIT_SECONDS
             save(folder / 'audit.json', daily.audit(report))
