@@ -137,6 +137,20 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'work') as tmp, \
         budget_state = job.build(budgeted, now=NOW, collector=slow_collection, checker=slow_preflight,
                                 analyzer=budget_analyzer, maintenance=lambda *args: None)
     assert budget_state['phase'] == 'ready' and remaining_seen == [2460]
+    # A time-limited review is partial even when collection and AI calls succeeded.
+    limited = root / 'limited'
+    setup(limited)
+    def incomplete_analysis(report, *args, **kwargs):
+        analyze(report, *args, **kwargs)
+        report['sites']['home']['assessments'].pop()
+        report['analysis_stop_reason'] = 'time_budget'
+    limited_state = job.build(limited, now=NOW, collector=collect,
+                              checker=lambda: None, analyzer=incomplete_analysis)
+    assert limited_state['phase'] == 'ready' and limited_state['report_status'] == 'daily_partial'
+    assert limited_state['review_limited'] and limited_state['review']['home']['groups_unreviewed'] == 1
+    limited_report = job.read(limited / 'daily' / DAY.isoformat() / 'report.json')
+    assert not limited_report['pipeline_warnings']
+    assert all(not data['ai_errors'] for data in limited_report['sites'].values())
     # A regenerated report on the same date is still not automatically resent.
     build(base, force=True)
     assert job.send(base, config, now=SEND+100, sender=sender)['status'] == 'already_sent'

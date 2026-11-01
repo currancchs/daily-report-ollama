@@ -29,7 +29,7 @@ PRODUCER = 'ai-monitor-daily-job-v1'
 MODEL = SETTINGS['model']
 OLLAMA = SETTINGS['ollama_url']
 RETENTION_DAYS = 30
-GROUP_CAP_PER_SITE = 2000
+GROUP_CAP_PER_SITE = 4000
 BUILD_LIMIT_SECONDS = 2700
 FINALIZE_RESERVE_SECONDS = 60
 
@@ -275,11 +275,11 @@ def build(base, force=False, now=None, collector=run_collection, checker=preflig
                                            progress=progress.counts)
             progress.counts(report)
             progress.stage('saving')
-            partial = bool(warnings) or any(data['ai_errors'] or data['rows_not_grouped']
-                                           for data in report['sites'].values())
-            report['status'] = 'daily_partial' if partial else 'daily_complete'
             report['review_limited'] = any(data['groups_total'] > len(data['assessments']) or data['rows_not_grouped']
                                            for data in report['sites'].values())
+            partial = report['review_limited'] or bool(warnings) or any(data['ai_errors']
+                                           for data in report['sites'].values())
+            report['status'] = 'daily_partial' if partial else 'daily_complete'
             report = daily.core.privacy.record(report)
             report['sanitization'] = daily.core.privacy.VERSION
             save(folder / 'report.json', report)

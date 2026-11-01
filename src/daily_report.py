@@ -31,11 +31,14 @@ spec.loader.exec_module(core)
 _rollup_spec = importlib.util.spec_from_file_location('event_rollups', Path(__file__).with_name('event_rollups.py'))
 event_rollups = importlib.util.module_from_spec(_rollup_spec)
 _rollup_spec.loader.exec_module(event_rollups)
+_review_spec = importlib.util.spec_from_file_location('efficient_review', Path(__file__).with_name('efficient_review.py'))
+efficient = importlib.util.module_from_spec(_review_spec)
+_review_spec.loader.exec_module(efficient)
 spec = importlib.util.spec_from_file_location('suppression_store', Path(__file__).with_name('suppression_rules.py'))
 filters = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(filters)
-VERSION = 'disk-balanced-v7-filters'
-DEFAULT_GROUP_BUDGET = 2000
+VERSION = 'disk-balanced-v8-efficient-filters'
+DEFAULT_GROUP_BUDGET = 4000
 DEFAULT_ANALYSIS_SECONDS = 2700
 KERNEL_UPTIME = re.compile(r'^\[\s*\d{1,12}\.\d{1,9}\]\s+')
 HA_DNS_CHECK = re.compile(r'INFO \(MainThread\) \[supervisor\.resolution\.checks\.base\] Run check for (?:dns_server_failed|dns_server_ipv6_error)/dns_server\s*')
@@ -405,9 +408,14 @@ def review_summary(report):
     return result
 
 
-def analyze(report, url, model, timeout, caller=core.call_ollama, max_runtime=DEFAULT_ANALYSIS_SECONDS,
-            clock=time.monotonic, progress=None):
+def analyze(report, url, model, timeout, caller=None, max_runtime=DEFAULT_ANALYSIS_SECONDS,
+            clock=time.monotonic, progress=None, batcher=None):
     """Alternate flagged work across sites, then routine work, with one deadline."""
+    compact = caller is None
+    caller = caller or efficient.call_ollama
+    batcher = batcher or (efficient.batches if compact else core.batches)
+    report['review_protocol'] = efficient.VERSION if compact else 'custom-caller'
+    report['inference_metrics'] = []
     began = clock()
     deadline = began + max_runtime
     report.update(model=model, ollama_url=url, analysis_budget_seconds=round(max_runtime, 1),
@@ -431,7 +439,7 @@ def analyze(report, url, model, timeout, caller=core.call_ollama, max_runtime=DE
                     for source in sorted(by_source):
                         if by_source[source]:
                             ordered.append(by_source[source].popleft())
-                queues[site][priority] = deque(core.batches(ordered))
+                queues[site][priority] = deque(batcher(ordered))
         except ValueError as error:
             data['ai_errors'].append(core.clean(error, 600))
             failed.add(site)
@@ -458,7 +466,10 @@ def analyze(report, url, model, timeout, caller=core.call_ollama, max_runtime=DE
                       ' (priority ' + str(priority) + ')', file=sys.stderr, flush=True)
                 call_began = clock()
                 try:
-                    answers = core.validate({'assessments': caller(url, model, batch, min(timeout, remaining))}, batch)
+                    result = caller(url, model, batch, min(timeout, remaining))
+                    answers = core.validate({'assessments': result}, batch)
+                    if hasattr(result, 'metrics'):
+                        report['inference_metrics'].append(dict(result.metrics, site=site, priority=priority))
                     data['assessments'].extend(answers)
                     data['batches_completed'] += 1
                 except Exception as error:
