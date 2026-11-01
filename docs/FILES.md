@@ -5,11 +5,13 @@
 | File | Purpose |
 |---|---|
 | `src/collect_sites.py` | Retrieve and verify Home/Work exports via SMB or read-only mounts. |
+| `src/controls_readiness.py` | Wait for the real suppression page before the installer publishes links. |
 | `src/daily_job.py` | Schedule-aware build, report integrity checks, retention and separate delivery. |
 | `src/daily_report.py` | Full-window aggregation, balanced selection, AI review budgets and reporting. |
 | `src/dashboard.py` | Render checked Home/Work summaries, coverage, timeline and dated history. |
 | `src/dashboard_progress.py` | Write best-effort atomic stage/batch/wake progress records. |
 | `src/event_rollups.py` | Recognize specific repetitive event families and retain distinguishing evidence. |
+| `src/efficient_review.py` | Compact evidence/replies, complete group validation, bounded split retries and inference timing. |
 | `src/gmail_report.py` | Interactive local Gmail configuration and TLS SMTP delivery/deduplication. |
 | `src/html_report.py` | Escape and render bounded HTML from report metadata. |
 | `src/import_synology.py` | Validate archives and deduplicate/redact newly imported SQLite events. |

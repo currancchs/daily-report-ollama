@@ -137,7 +137,7 @@ assert r['review_limited'] and all(d['groups_unreviewed'] == 10 for d in daily.r
 job_spec = importlib.util.spec_from_file_location('job', ROOT / 'src/daily_job.py')
 job = importlib.util.module_from_spec(job_spec)
 job_spec.loader.exec_module(job)
-assert job.GROUP_CAP_PER_SITE == daily.DEFAULT_GROUP_BUDGET == 2000
+assert job.GROUP_CAP_PER_SITE == daily.DEFAULT_GROUP_BUDGET == 4000
 assert job.BUILD_LIMIT_SECONDS == daily.DEFAULT_ANALYSIS_SECONDS == 2700 and job.FINALIZE_RESERVE_SECONDS == 60
 assert 'TimeoutStartSec=45min' in (ROOT / 'systemd/ai-monitor-build.service').read_text()
-print('PASS: severity within each site; cross-site flagged fairness; actual imbalanced-queue regression; routine work after flagged work; source balancing; validated completion; deadline and partial evidence; per-site failure isolation; truthful review-limit counts; 2000/site and 45-minute build settings. No network calls.')
+print('PASS: severity within each site; cross-site flagged fairness; actual imbalanced-queue regression; routine work after flagged work; source balancing; validated completion; deadline and partial evidence; per-site failure isolation; truthful review-limit counts; 4000/site and 45-minute build settings. No network calls.')
