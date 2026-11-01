@@ -15,3 +15,5 @@ For a deliberate future migration:
 7. Run collection/audit and one explicit build; verify report contents and status, then enable only the timers previously enabled.
 
 A rollback restores the saved source/unit set and prior configuration together. Do not copy the new first-install files over an active coordinator while its services are running.
+
+The suppression release also requires `suppression_rules.py` alongside the reporting modules, even if the interactive controls are not enabled. Preserve `event_rollups.py`, dashboard progress callbacks, portable environment settings and the static publisher. After the complete source migration, follow [FILTERS.md](FILTERS.md) for the optional web application. It keeps `/`, `/report.html`, history and the publication timer; it mounts editing controls separately at `/controls/`. Existing reports gain Ignore buttons only after a new build creates full matching signatures.

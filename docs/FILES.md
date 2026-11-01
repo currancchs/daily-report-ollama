@@ -20,11 +20,16 @@
 | `src/publish_report.py` | Publish a verified dashboard, current report and dated HTML history; fail closed on invalid data. |
 | `src/sanitize_logs.py` | Best-effort credential-pattern redaction. |
 | `src/settings.py` | Read non-secret environment configuration and validate local model endpoint. |
+| `src/suppression_rules.py` | Exact normalized-group filters, expiry, reversible deletion and SQLite audit. |
+| `src/report_web.py` | Verified issue view, Ignore confirmation, suppressed issues and filter-management forms. |
 | `src/wake_ollama.py` | Optional configured Wake-on-LAN sender and readiness wait. |
 
 ## Installation and operations
 
 - `scripts/install-coordinator.sh`: guarded first install for Debian; leaves timers disabled.
+- `scripts/install-controls.sh`: optional controls service/dependencies on a matching installed release; preserves dashboard/history and network ACLs.
+- `config/nginx-controls.conf`: optional `/controls/` proxy route inside the existing viewer server.
+- `requirements-web.txt`: Flask/Gunicorn for the optional web service.
 - `scripts/run.py`: loads `monitor.env` without evaluating shell code, then runs a component.
 - `scripts/nas-daily-export.sh`: DSM scheduled-task wrapper.
 - `scripts/Install-OllamaPowerGuard.ps1` and `Ollama-PowerGuard.ps1`: optional Windows power controls.
@@ -38,6 +43,7 @@
 - `examples/`: synthetic HTML preview and matching JSON; not real device status.
 - `docs/SETUP.md`: complete prerequisites, configuration and commands.
 - `docs/POWER.md`: optional wake and shutdown setup.
+- `docs/FILTERS.md`: matching semantics, installation, verification and filter-store operations.
 - `docs/UPGRADE.md`: existing-install migration boundaries.
 - `docs/ARCHITECTURE.md`: implementation and dashboard roadmap.
 - `SECURITY.md`: data boundaries and publishing exclusions.

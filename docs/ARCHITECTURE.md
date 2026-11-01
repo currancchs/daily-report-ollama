@@ -17,12 +17,20 @@ The daily window ends at 03:30 local time; exports run at 03:40 and the build st
 - Up to 30 days of verified HTML reports appear in dated history. History rechecks identity, timestamps and hashes; corrupt entries become unavailable.
 - The publisher runs every five minutes. Refresh the browser to load its latest saved page. No browser polling, NAS query, or model call occurs when browsing.
 
-The public web root contains only regenerated `index.html`, `report.html`, and `history/YYYY-MM-DD.html`. NGINX permits only these paths. Raw JSON, SQLite, progress records, credentials and caches remain outside that root. Saved report HTML is regenerated from checked JSON and escaped; it is not trusted as executable content.
+The static web root contains only regenerated `index.html`, `report.html`, and `history/YYYY-MM-DD.html`. NGINX permits only these static paths, plus the optional `/controls/` application when installed. Raw JSON, SQLite, progress records, credentials and caches remain outside that root. Saved report HTML is regenerated from checked JSON and escaped; it is not trusted as executable content.
+
+## Optional suppression controls
+
+The issue view offers Ignore, a separate Suppressed issues page and a Filters management page. Filters default to no expiry and can be deleted to restore eligibility for future builds. A full SHA-256 group identity scopes each rule to the site, source and normalized evidence fields. Recognized grouping rules may combine specific varying fields; this scope is disclosed before saving.
+
+Each build reads one filter snapshot and removes matching groups from its temporary aggregation database before selection and AI review. It preserves their counts and representative evidence in the report. Original history and NAS data remain untouched. A broken filter store fails open with a coverage warning. Suppression is accounted for separately from unreviewed eligible groups, and an entirely suppressed report does not claim successful AI review.
+
+The Flask application verifies the current report on each visit. It shows saved evidence with current filter settings; already-built reports and emails remain unchanged. Creation/deletion use same-origin POST forms, CSRF checks, a persistent session key and transactional SQLite writes. The existing static overview, stage tracking and dated history continue independently. See [FILTERS.md](FILTERS.md).
 
 Detailed stage information begins with the first run after the update; older reports may have no progress records. SMTP acceptance is displayed separately from inbox delivery. The optional wake/email steps can show no confirmation if the operator has not enabled those features.
 
 ## Release state and remaining work
 
-The dashboard update is installed on the original coordinator and passed its offline, NGINX and web checks. This portable adaptation includes the final permission-handling fix. Its first-install script has not been run on a fresh Debian deployment.
+The dashboard update is installed on the original coordinator and passed its offline, NGINX and web checks. This portable adaptation includes the final permission-handling fix. The new suppression controls are implemented and tested offline; deployment is not yet confirmed. The first-install and optional controls scripts have not been run on a fresh Debian deployment.
 
 Searchable findings, source-volume charts, acknowledgment/investigation notes, and automatic browser polling are not implemented. The included preview uses synthetic data and demonstrates saved reports, not real device status.

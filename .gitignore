@@ -9,6 +9,9 @@ gmail.json
 monitor.env
 power.key
 *.dpapi
+session.key
+filters.sqlite*
+suppressions/
 events.sqlite*
 *.DB
 *.db

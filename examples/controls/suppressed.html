@@ -1,0 +1,39 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>EXAMPLE — Suppressed issues · Nightly AI Logs</title>
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#edf2f6;color:#172b40;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}a{color:#0c746d;text-decoration:none}a:hover{text-decoration:underline}header{background:#11283f;color:#fff;border-top:5px solid #2dd4bf}header>div,main{max-width:1100px;margin:auto;padding:26px 24px}header small{color:#91d8d2;letter-spacing:2px;font-weight:700}h1{font-size:30px;margin:6px 0}header p{color:#cbd5e1;margin:4px 0 20px}nav{display:flex;gap:10px;flex-wrap:wrap}nav a{padding:9px 17px;color:#d8e8f2;border-radius:7px}nav a.current{background:#fff;color:#11283f;font-weight:700}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}h2{font-size:24px;margin:5px 0 18px}.muted{color:#60748a;font-size:13px}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:18px 0 24px}.metric,.panel,.issue{background:#fff;border:1px solid #dce4ec;border-radius:10px;padding:22px;margin-bottom:18px}.metric{margin:0}.metric strong{display:block;font-size:28px}.metric span{color:#60748a;font-size:12px}.issue{border-left:4px solid #0f766e}.issue.warning{border-left-color:#d97706}.issue.critical{border-left-color:#be123c}.badge{display:inline-block;border-radius:5px;padding:3px 9px;background:#eef4f8;color:#405b73;font-size:12px;font-weight:700}.badge.warning{background:#fffbeb;color:#92400e}.badge.critical{background:#fff1f2;color:#9f1239}.badge.filtered{background:#eff0fe;color:#51439a}.issue h3{margin:12px 0 8px;font-size:18px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6f9;padding:14px;border-radius:7px;font:12px/1.65 Consolas,monospace}button,.button{display:inline-block;padding:10px 16px;border:1px solid #0f766e;border-radius:7px;background:#0f766e;color:white;font:600 14px system-ui;cursor:pointer}.button.secondary{background:#fff;color:#0f766e}button.danger,.button.danger{background:#fff;border-color:#be123c;color:#9f1239}.actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}.notice{border-left:4px solid #d97706;background:#fffbeb;padding:16px 20px;margin:18px 0;border-radius:5px;color:#78350f}.success{border-color:#0f766e;background:#edf9f5;color:#115e59}label{display:block;font-weight:600;margin:18px 0 6px}textarea,select{font:inherit;max-width:100%;width:100%;padding:11px;border:1px solid #bac9d6;border-radius:6px;background:#fff;color:#172b40}textarea{min-height:85px}dl{display:grid;grid-template-columns:160px 1fr;gap:8px 18px}dt{color:#60748a}dd{margin:0;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top;overflow-wrap:anywhere}.table-wrap{overflow-x:auto}footer{font-size:12px;color:#60748a;padding:15px 0 30px}details{margin-top:12px}summary{cursor:pointer;color:#0c746d}.pager{display:flex;justify-content:space-between;margin:20px 0}@media(max-width:650px){header>div,main{padding:20px 14px}.cards{grid-template-columns:1fr;gap:8px}.metric{padding:14px}.metric strong{display:inline;font-size:23px;margin-right:10px}.panel,.issue{padding:17px}dl{grid-template-columns:1fr;gap:1px}dd{margin-bottom:10px}h1{font-size:25px}}
+</style></head><body><header><div><small>NIGHTLY OPERATIONS</small><h1>Home + Work</h1>
+<p>Your daily log briefing and suppression controls</p><nav>
+<a href="../dashboard/index.html">Dashboard</a>
+<a href="report.html" class="">Report</a>
+<a href="suppressed.html" class="current">Suppressed issues</a>
+<a href="filters.html" class="">Filters</a></nav></div></header>
+<main><div class="notice"><strong>DESIGN PREVIEW · EXAMPLE DATA.</strong> This saved file is a layout example. Form buttons are disabled.</div><div class="top"><h2>Suppressed issues</h2><span class="muted">2026-11-01 05:00:00 AM EST</span></div>
+
+
+
+
+    <p class="muted">Report 2026-11-01 · Oct 31, 03:30 AM EDT → Nov 01, 03:30 AM EST<br>
+    Saved nightly snapshot; filters below reflect current settings. Changes affect the next build, including the next email built from it.</p>
+    <div class="cards"><div class="metric"><strong>7,066</strong><span>RECORDS COLLECTED</span></div>
+    <div class="metric"><strong>30 / 34</strong><span>ELIGIBLE GROUPS AI REVIEWED AT BUILD</span></div>
+    <div class="metric"><strong>1</strong><span>GROUPS HIDDEN BY CURRENT FILTERS IN THIS SNAPSHOT</span></div></div>
+    <div class="notice"><strong>Coverage needs attention.</strong> Some data or AI review may be missing. Suppression does not clear collection failures or review limits.
+    </div>
+    <p>Matching issues remain in local history. This page shows matching groups present in the saved report, including those excluded before AI review. Filters with no match appear on the Filters page.</p>
+    <div class="top"><p class="muted">1 groups · page 1 of 1</p><div><a href="suppressed.html">Both sites</a> · <a href="/suppressed?site=home">Home</a> · <a href="/suppressed?site=work">Work</a></div></div>
+
+    <article class="issue warning"><div class="top"><div><span class="badge">HOME</span> <span class="badge warning">WARNING</span> <span class="badge filtered">SUPPRESSED</span></div><span class="muted">4,265 records</span></div>
+    <h3>Home Assistant · homeassistant</h3>
+    <p>The patio temperature sensor is not responding.</p>
+    <pre>Timeout connecting to patio-temperature at 192.0.2.70</pre><p class="muted">First Oct 31, 04:30 AM EDT · Last Nov 01, 03:29 AM EST</p>
+    <p><strong>Next check:</strong> Check whether the sensor is powered and reachable.</p>
+    <p class="muted">Reason: Disconnected during patio repairs. · Until removed</p>
+    <div class="actions"><a class="button secondary" href="restore.html">Restore / delete filter</a><a href="filters.html">View filters</a></div>
+    </article>
+
+    <div class="pager"><span></span></div>
+
+
+
+<footer>America/New_York · Local logs and local AI · AI findings are advisory.<br>Anyone permitted by the LAN/VPN access rules can view reports and manage filters.</footer></main></body></html>

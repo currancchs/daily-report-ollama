@@ -67,7 +67,7 @@ class DashboardTests(unittest.TestCase):
         result=self.publish()
         self.assertEqual(result['history_reports'],2)
         self.assertIn('Partial AI review',self.page())
-        self.assertIn('1 / 5 groups',self.page())
+        self.assertIn('1 / 5 eligible groups',self.page())
         self.assertIn('2026-10-29.html',self.page())
         self.assertIn('Archived report',(self.public/'history/2026-10-29.html').read_text())
         self.assertNotIn('UNSAFE_SAVED_HTML',(self.public/'report.html').read_text())
@@ -169,5 +169,22 @@ class DashboardTests(unittest.TestCase):
                           caller=answers,progress=broken_progress,max_runtime=30)
         self.assertEqual(report['analysis_stop_reason'],'selected_groups_complete')
         self.assertTrue(all(len(s['assessments'])==1 for s in report['sites'].values()))
+
+    def test_all_filtered_and_optional_controls_link(self):
+        _,_,report,write_report=fixture(self.base,partial=False)
+        for data in report['sites'].values():
+            data.update(suppressed_groups=data['groups'],suppressed_records=120,
+                        groups=[],groups_total=0,assessments=[])
+            for source in data['sources'].values():source['groups_total']=0
+        write_report()
+        self.publish()
+        self.assertIn('All groups suppressed',self.page())
+        self.assertIn('120 records suppressed',self.page())
+        self.assertNotIn('Coverage needs attention',self.page())
+        self.assertNotIn('href="/controls/"',self.page())
+        with patch.dict('os.environ',{'AI_MONITOR_CONTROLS':'1'}): self.publish()
+        self.assertIn('href="/controls/"',self.page())
+        self.assertIn('href="/controls/"',(self.public/'report.html').read_text())
+        self.assertNotIn('href="/controls/"',(self.public/'history'/f'{DAY}.html').read_text())
 
 if __name__=='__main__':unittest.main()

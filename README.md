@@ -19,14 +19,16 @@ This is a reusable adaptation of my setup, prepared October 31, 2026. Personal e
 - [Privacy and data boundaries](SECURITY.md)
 - [Existing-install upgrade notes](docs/UPGRADE.md)
 - [Optional Wake-on-LAN and shutdown guard](docs/POWER.md)
+- [Optional Ignore buttons, suppressed issues and filter management](docs/FILTERS.md)
 - [Synthetic dashboard preview](examples/dashboard/index.html)
+- [Synthetic Ignore / Suppressed / Filters preview](examples/controls/report.html)
 - [Synthetic report preview](examples/nightly-report-preview.html)
 
 The default installation does **not** enable timers, send mail, or arm shutdown. Setup enables each explicitly after its checks. The report viewer initially listens on loopback and can be reached through SSH forwarding.
 
 ## Offline preview and checks
 
-Requires Python 3.11+ on the coordinator/development machine. The NAS exporter is compatible with Python 3.8+ and uses only the standard library. On Windows install the timezone package first:
+Requires Python 3.11+ on the coordinator/development machine. The NAS exporter is compatible with Python 3.8+ and uses only the standard library. Install the test dependencies (Flask, plus timezone data on Windows) first:
 
 ```powershell
 py -3 -m pip install -r requirements-dev.txt
@@ -37,6 +39,7 @@ Start-Process .\examples\nightly-report-preview.html
 Linux:
 
 ```bash
+python3 -m pip install -r requirements-dev.txt
 python3 scripts/test.py
 ```
 
@@ -51,8 +54,11 @@ Tests use synthetic SQLite databases and simulated Ollama/SMTP responses. They d
 - Civil-date report windows, separate build/delivery, failure notices, and duplicate-send protection.
 - Verified, escaped HTML publication for the current nightly report and up to 30 days of dated history.
 - Home/Work overview cards, source coverage, nightly stage timestamps, and batch progress records.
+- Optional issue controls: Ignore until removed (or for a chosen duration), inspect suppressed issues, and delete filters to restore future messages. Exact group matches are excluded before AI review, with visible suppression counts and preserved original logs.
 - Optional signed completion endpoint, Wake-on-LAN sender, and Windows shutdown guard.
 
 This source release includes the dashboard update installed and checked on the original coordinator. The portable adaptation passes offline tests; the fresh Debian installer still requires validation in a separate new environment. Search, volume charts, acknowledgments, and automatic browser polling remain future work. Current site names are `home` and `work`, and the transport expects a share named `Logs` containing `AI-Monitor-Exports`. Renaming those requires code changes. The exporter expects supported Log Center schemas; arbitrary syslog files need another adapter.
 
-The core is standard-library Python. NGINX, smbclient, systemd, Synology, and Ollama are separate prerequisites. Source is MIT licensed; external software and downloaded models retain their own licenses.
+The suppression upgrade is implemented and tested offline; installation on the original coordinator is not yet confirmed. The optional web controls use Flask and Gunicorn, stay under `/controls/`, and retain the existing static dashboard and history. Read [FILTERS.md](docs/FILTERS.md) before enabling them.
+
+The collector and reporting core use standard-library Python. NGINX, smbclient, systemd, Synology, and Ollama are separate prerequisites. Source is MIT licensed; external software and downloaded models retain their own licenses.
