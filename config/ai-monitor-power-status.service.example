@@ -1,0 +1,15 @@
+[Unit]
+Description=Signed read-only report completion for the Ollama PC
+After=network-online.target
+
+[Service]
+Type=simple
+User=ai-monitor
+Group=ai-monitor
+UMask=0077
+ExecStart=/usr/bin/python3 -I /opt/ai-monitor/run.py power_status --bind COORDINATOR_IP --client OLLAMA_IP
+Restart=on-failure
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

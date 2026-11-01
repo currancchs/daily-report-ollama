@@ -1,0 +1,11 @@
+[Unit]
+Description=Wake the configured Ollama PC
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ai-monitor
+Group=ai-monitor
+ExecStart=/usr/bin/python3 -I /opt/ai-monitor/run.py wake_ollama --scheduled --wait 120
+TimeoutStartSec=150
+NoNewPrivileges=true

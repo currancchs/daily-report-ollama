@@ -1,0 +1,584 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-10-31",
+  "status": "daily_complete",
+  "generated_utc": "2026-10-31T04:35:00-04:00",
+  "window_start": 1793345700,
+  "window_end_exclusive": 1793431800,
+  "model": "qwen3.6:27b",
+  "review_limited": true,
+  "sites": {
+    "home": {
+      "groups": [
+        {
+          "id": "home-0",
+          "source": "pfSense",
+          "host": "pfSense",
+          "count": 4265,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 1,
+          "example_message": "DHCP4_INIT_REBOOT client 02:00:00:00:00:01 requests 192.0.2.197"
+        },
+        {
+          "id": "home-1",
+          "source": "ProxmoxVE",
+          "host": "ProxmoxVE",
+          "count": 280,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 1,
+          "example_message": "Example event: service request failed"
+        },
+        {
+          "id": "home-2",
+          "source": "Home Assistant",
+          "host": "Home Assistant",
+          "count": 39,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-3",
+          "source": "pfSense",
+          "host": "pfSense",
+          "count": 46,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-4",
+          "source": "ProxmoxVE",
+          "host": "ProxmoxVE",
+          "count": 53,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-5",
+          "source": "Home Assistant",
+          "host": "Home Assistant",
+          "count": 60,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-6",
+          "source": "pfSense",
+          "host": "pfSense",
+          "count": 67,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-7",
+          "source": "ProxmoxVE",
+          "host": "ProxmoxVE",
+          "count": 74,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-8",
+          "source": "Home Assistant",
+          "host": "Home Assistant",
+          "count": 81,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-9",
+          "source": "pfSense",
+          "host": "pfSense",
+          "count": 88,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-10",
+          "source": "ProxmoxVE",
+          "host": "ProxmoxVE",
+          "count": 95,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-11",
+          "source": "Home Assistant",
+          "host": "Home Assistant",
+          "count": 102,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-12",
+          "source": "pfSense",
+          "host": "pfSense",
+          "count": 109,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-13",
+          "source": "ProxmoxVE",
+          "host": "ProxmoxVE",
+          "count": 116,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-14",
+          "source": "Home Assistant",
+          "host": "Home Assistant",
+          "count": 123,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-15",
+          "source": "pfSense",
+          "host": "pfSense",
+          "count": 130,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-16",
+          "source": "ProxmoxVE",
+          "host": "ProxmoxVE",
+          "count": 137,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "home-17",
+          "source": "Home Assistant",
+          "host": "Home Assistant",
+          "count": 144,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        }
+      ],
+      "assessments": [
+        {
+          "id": "home-0",
+          "classification": "uncertain",
+          "severity": "warning",
+          "summary": "Repeated DHCP address confirmations deserve a connection-history check.",
+          "suggested_check": "Compare the device connection history and event timestamps."
+        },
+        {
+          "id": "home-1",
+          "classification": "uncertain",
+          "severity": "warning",
+          "summary": "Repeated service errors need verification against the source logs.",
+          "suggested_check": "Compare the device connection history and event timestamps."
+        },
+        {
+          "id": "home-2",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-3",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-4",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-5",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-6",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-7",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-8",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-9",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-10",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-11",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-12",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-13",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-14",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-15",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-16",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "home-17",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        }
+      ],
+      "groups_total": 22,
+      "rows_in_window": 6049,
+      "rows_scanned": 6049,
+      "rows_not_grouped": 0,
+      "sources": {
+        "pfSense": {
+          "records": 4705,
+          "groups_total": 6,
+          "last_record": 1793431700,
+          "warnings": []
+        },
+        "ProxmoxVE": {
+          "records": 755,
+          "groups_total": 6,
+          "last_record": 1793431700,
+          "warnings": []
+        },
+        "Home Assistant": {
+          "records": 549,
+          "groups_total": 6,
+          "last_record": 1793431700,
+          "warnings": []
+        }
+      },
+      "warnings": [],
+      "ai_errors": [],
+      "flagged_groups_total": 2
+    },
+    "work": {
+      "groups": [
+        {
+          "id": "work-0",
+          "source": "work-hypervisor",
+          "host": "work-hypervisor",
+          "count": 280,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 1,
+          "example_message": "Example event: service request failed"
+        },
+        {
+          "id": "work-1",
+          "source": "Work NAS",
+          "host": "Work NAS",
+          "count": 32,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-2",
+          "source": "work-hypervisor",
+          "host": "work-hypervisor",
+          "count": 39,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-3",
+          "source": "Work NAS",
+          "host": "Work NAS",
+          "count": 46,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-4",
+          "source": "work-hypervisor",
+          "host": "work-hypervisor",
+          "count": 53,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-5",
+          "source": "Work NAS",
+          "host": "Work NAS",
+          "count": 60,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-6",
+          "source": "work-hypervisor",
+          "host": "work-hypervisor",
+          "count": 67,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-7",
+          "source": "Work NAS",
+          "host": "Work NAS",
+          "count": 74,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-8",
+          "source": "work-hypervisor",
+          "host": "work-hypervisor",
+          "count": 81,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-9",
+          "source": "Work NAS",
+          "host": "Work NAS",
+          "count": 88,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-10",
+          "source": "work-hypervisor",
+          "host": "work-hypervisor",
+          "count": 95,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        },
+        {
+          "id": "work-11",
+          "source": "Work NAS",
+          "host": "Work NAS",
+          "count": 102,
+          "first": 1793399700,
+          "last": 1793431700,
+          "priority_hint": 3,
+          "example_message": "Example routine event"
+        }
+      ],
+      "assessments": [
+        {
+          "id": "work-0",
+          "classification": "uncertain",
+          "severity": "warning",
+          "summary": "Repeated service errors need verification against the source logs.",
+          "suggested_check": "Compare the device connection history and event timestamps."
+        },
+        {
+          "id": "work-1",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-2",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-3",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-4",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-5",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-6",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-7",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-8",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-9",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-10",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        },
+        {
+          "id": "work-11",
+          "classification": "routine",
+          "severity": "info",
+          "summary": "Routine example activity.",
+          "suggested_check": ""
+        }
+      ],
+      "groups_total": 12,
+      "rows_in_window": 1017,
+      "rows_scanned": 1017,
+      "rows_not_grouped": 0,
+      "sources": {
+        "work-hypervisor": {
+          "records": 615,
+          "groups_total": 6,
+          "last_record": 1793431700,
+          "warnings": []
+        },
+        "Work NAS": {
+          "records": 402,
+          "groups_total": 6,
+          "last_record": 1793431700,
+          "warnings": [
+            "One archive-only source has no live database; daily coverage is uncertain."
+          ]
+        }
+      },
+      "warnings": [],
+      "ai_errors": [],
+      "flagged_groups_total": 1
+    }
+  }
+}

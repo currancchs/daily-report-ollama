@@ -1,0 +1,10 @@
+[Unit]
+Description=Wake Ollama before the nightly report
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 America/New_York
+Persistent=false
+Unit=ai-monitor-wake.service
+
+[Install]
+WantedBy=timers.target

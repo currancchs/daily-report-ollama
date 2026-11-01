@@ -1,0 +1,11 @@
+[Unit]
+Description=Publish the verified saved report
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=1s
+Unit=ai-monitor-publish.service
+
+[Install]
+WantedBy=timers.target

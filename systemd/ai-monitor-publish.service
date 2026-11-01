@@ -1,0 +1,15 @@
+[Unit]
+Description=Publish the verified saved report
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ai-monitor
+Group=ai-monitor
+WorkingDirectory=/var/lib/ai-monitor
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/usr/bin/python3 -I /opt/ai-monitor/run.py publish_report
+TimeoutStartSec=1min
+NoNewPrivileges=true

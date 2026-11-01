@@ -1,0 +1,58 @@
+# Daily Report + Ollama
+
+A local AI log-review pipeline for two Synology Log Center sites, called **home** and **work**. A Linux coordinator exports/imports events, groups repeated messages, asks a local Ollama model to review bounded evidence, and produces a daily HTML/text digest. A private browser dashboard, dated report history, and optional Gmail delivery read the saved result.
+
+```text
+Home devices → Home Synology ─┐
+                             ├→ verified exports → SQLite → grouping → local Ollama
+Work devices → Work Synology ┘                                        ↓
+                                                private viewer ← saved digest → optional Gmail
+```
+
+This is a reusable adaptation of Matt Curran's setup, prepared October 31, 2026. Personal endpoints and hardware identifiers have been replaced with configuration. The original setup uses an RTX 3090 and `qwen3.6:27b`; this package defaults to `qwen3:8b` as a smaller configurable example. No model weights, live reports, NAS databases, passwords, or pairing keys are included.
+
+## Start here
+
+- [Complete setup, including exact commands](docs/SETUP.md)
+- [What each file does](docs/FILES.md)
+- [Current capabilities and dashboard roadmap](docs/ARCHITECTURE.md)
+- [Privacy and data boundaries](SECURITY.md)
+- [Existing-install upgrade notes](docs/UPGRADE.md)
+- [Optional Wake-on-LAN and shutdown guard](docs/POWER.md)
+- [Synthetic dashboard preview](examples/dashboard/index.html)
+- [Synthetic report preview](examples/nightly-report-preview.html)
+
+The default installation does **not** enable timers, send mail, or arm shutdown. Setup enables each explicitly after its checks. The report viewer initially listens on loopback and can be reached through SSH forwarding.
+
+## Offline preview and checks
+
+Requires Python 3.11+ on the coordinator/development machine. The NAS exporter is compatible with Python 3.8+ and uses only the standard library. On Windows install the timezone package first:
+
+```powershell
+py -3 -m pip install -r requirements-dev.txt
+py -3 scripts/test.py
+Start-Process .\examples\nightly-report-preview.html
+```
+
+Linux:
+
+```bash
+python3 scripts/test.py
+```
+
+Tests use synthetic SQLite databases and simulated Ollama/SMTP responses. They do not send email, contact your NAS, run a model, or shut down a computer. Generated test scratch data stays under ignored `work/`.
+
+## What is implemented
+
+- Four Synology table schemas, export manifests/checksums, ZIP validation, deduplication, and archive catch-up.
+- Credential-pattern redaction before new records enter the coordinator history.
+- Event-family rollups, preserved counts/timestamps, and priority/source balancing.
+- Structured model replies with evidence-ID validation and bounded runtime.
+- Civil-date report windows, separate build/delivery, failure notices, and duplicate-send protection.
+- Verified, escaped HTML publication for the current nightly report and up to 30 days of dated history.
+- Home/Work overview cards, source coverage, nightly stage timestamps, and batch progress records.
+- Optional signed completion endpoint, Wake-on-LAN sender, and Windows shutdown guard.
+
+This source release includes the dashboard update installed and checked on the original coordinator. The portable adaptation passes offline tests; the fresh Debian installer still requires validation in a separate new environment. Search, volume charts, acknowledgments, and automatic browser polling remain future work. Current site names are `home` and `work`, and the transport expects a share named `Logs` containing `AI-Monitor-Exports`. Renaming those requires code changes. The exporter expects supported Log Center schemas; arbitrary syslog files need another adapter.
+
+The core is standard-library Python. NGINX, smbclient, systemd, Synology, and Ollama are separate prerequisites. Source is MIT licensed; external software and downloaded models retain their own licenses.

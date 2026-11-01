@@ -1,0 +1,11 @@
+[Unit]
+Description=Build the nightly local AI report
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 America/New_York
+Persistent=true
+AccuracySec=1s
+Unit=ai-monitor-build.service
+
+[Install]
+WantedBy=timers.target
