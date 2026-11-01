@@ -37,6 +37,10 @@ PY
     chmod 0640 /etc/ai-monitor-web/session.key
 fi
 runuser -u ai-monitor -- python3 -I /opt/ai-monitor/suppression_rules.py initialize
+runuser -u ai-monitor -- python3 -I /opt/ai-monitor/device_inventory.py initialize
+if test -f /var/lib/ai-monitor/events.sqlite; then
+    runuser -u ai-monitor -- python3 -I /opt/ai-monitor/device_inventory.py refresh
+fi
 install -o root -g root -m 0644 "$root/systemd/ai-monitor-web.service" /etc/systemd/system/
 install -d -o root -g root -m 0755 /etc/nginx/ai-monitor-controls.d
 install -o root -g root -m 0644 "$root/config/nginx-controls.conf" /etc/nginx/ai-monitor-controls.d/controls.conf

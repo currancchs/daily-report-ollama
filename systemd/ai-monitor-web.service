@@ -25,7 +25,7 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictAddressFamilies=AF_INET AF_UNIX
-ReadWritePaths=/var/lib/ai-monitor/suppressions
+ReadWritePaths=/var/lib/ai-monitor/suppressions /var/lib/ai-monitor/devices
 InaccessiblePaths=/etc/ai-monitor -/var/lib/ai-monitor/events.sqlite -/var/lib/ai-monitor/events.sqlite-wal -/var/lib/ai-monitor/events.sqlite-shm -/var/lib/ai-monitor/cache
 
 [Install]
