@@ -27,6 +27,10 @@ SETTINGS = _settings_module['load']()
 spec = importlib.util.spec_from_file_location("synology_import", Path(__file__).with_name("import_synology.py"))
 importer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(importer)
+spec = importlib.util.spec_from_file_location('device_inventory', Path(__file__).with_name('device_inventory.py'))
+devices = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(devices)
+
 NAS = {"home": SETTINGS["home_nas"], "work": SETTINGS["work_nas"]}
 RUN = re.compile(r"^(home|work)-\d{8}T\d{6}Z-[a-f0-9]{8}$")
 
@@ -173,9 +177,9 @@ def collect(base, sites=("home", "work"), auth_dir=Path("/etc/ai-monitor"), gett
             for source, info in manifest["sources"].items():
                 entry["sources"][source] = {"file": manifest["run_id"], "exported_utc": None,
                     "warnings": [], "has_live_database": bool(info.get("has_live_database")),
-                    "assets_imported": 0, "rows_in_export": 0}
+                    "assets_imported": 0, "rows_in_export": 0, "discovery_status": "present", "notices": []}
                 if not info.get("has_live_database"):
-                    entry["sources"][source]["warnings"].append("Archive-only source: no live database was found.")
+                    entry["sources"][source]["notices"].append("Historical archives only; no live database was found.")
             stats = {"assets_imported": 0, "rows_read": 0, "new_rows": 0, "duplicate_rows": 0}
             for asset in manifest["assets"]:
                 info = entry["sources"][asset["source"]]
@@ -221,10 +225,9 @@ def collect(base, sites=("home", "work"), auth_dir=Path("/etc/ai-monitor"), gett
             for source, info in previous.get("sources", {}).items():
                 if source not in entry["sources"]:
                     retained = dict(info)
-                    retained["warnings"] = ["Missing from latest discovery; only previously imported history is available."]
+                    retained.update(discovery_status="absent", warnings=[], notices=["No exportable file in the latest NAS discovery; retained history remains available."])
                     entry["sources"][source] = retained
-                    entry["warnings"].append(source + ": absent from the latest NAS discovery.")
-            if not entry["sources"]:
+            if not manifest["sources"]:
                 entry["warnings"].append("No sources discovered; log coverage is unavailable.")
             entry["status"] = "partial" if entry["warnings"] else "complete"
             registry["sites"][site] = entry
@@ -245,6 +248,17 @@ def collect(base, sites=("home", "work"), auth_dir=Path("/etc/ai-monitor"), gett
             registry["sites"][site] = entry
             results[site] = {"status": "unavailable", "warnings": entry["warnings"]}
         save_json(registry_path, registry)
+    if devices.database_path(base).exists() or (base/'devices/enabled').exists():
+        try:
+            devices.refresh(base)
+        except Exception as error:
+            warning = 'Device inventory refresh failed (' + type(error).__name__ + '); inspect the coordinator.'
+            for site in sites:
+                entry = registry['sites'][site]
+                entry['warnings'].append(warning)
+                if entry['status'] == 'complete': entry['status'] = 'partial'
+                results[site].update(status=entry['status'], warnings=entry['warnings'])
+            save_json(registry_path, registry)
     return results
 
 

@@ -36,6 +36,7 @@
 - `scripts/nas-daily-export.sh`: DSM scheduled-task wrapper.
 - `scripts/Install-OllamaPowerGuard.ps1` and `Ollama-PowerGuard.ps1`: optional Windows power controls.
 - `scripts/test.py`: run the offline regression programs.
+- `scripts/test-remote-syslog.sh`: optional Proxmox guest forwarding/filter probes; see `docs/SYSLOG-CHECK.md`.
 - `systemd/`: build, delivery and publication services/timers.
 - `config/`: non-secret templates, loopback NGINX config, and optional power-unit examples.
 
@@ -46,6 +47,7 @@
 - `docs/SETUP.md`: complete prerequisites, configuration and commands.
 - `docs/POWER.md`: optional wake and shutdown setup.
 - `docs/FILTERS.md`: matching semantics, installation, verification and filter-store operations.
+- `src/device_inventory.py` and `docs/DEVICES.md`: observed device aliases, retirement, restoration and permanent exclusions without deleting events.
 - `docs/UPGRADE.md`: existing-install migration boundaries.
 - `docs/ARCHITECTURE.md`: implementation and dashboard roadmap.
 - `SECURITY.md`: data boundaries and publishing exclusions.

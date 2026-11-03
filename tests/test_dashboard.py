@@ -178,7 +178,7 @@ class DashboardTests(unittest.TestCase):
             for source in data['sources'].values():source['groups_total']=0
         write_report()
         self.publish()
-        self.assertIn('All groups suppressed',self.page())
+        self.assertIn('All records excluded by settings',self.page())
         self.assertIn('120 records suppressed',self.page())
         self.assertNotIn('Coverage needs attention',self.page())
         self.assertNotIn('href="/controls/"',self.page())

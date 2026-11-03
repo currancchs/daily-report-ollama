@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'work') as temporary:
     assert home['sources']['prefix']['groups_total'] == 2
     assert home['sources']['clock']['event_ahead_of_receive_over_5m'] == 1
     assert home['sources']['clock']['maximum_event_lead_seconds'] == 3659
-    assert work['sources']['blank']['warnings']
+    assert work['sources']['blank']['notices'] and not work['sources']['blank']['warnings']
     assert home['sources']['quiet']['reported_critical_records'] == 1
     assert all(data['records_outside_ai_selection'] > 59000 for data in report['sites'].values())
     # Actual audited counts must never be capped at 5,000 groups or 50,000 rows.

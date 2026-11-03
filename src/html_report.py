@@ -98,6 +98,7 @@ def render(report, fallback_text='', dashboard_url=None, demo=False, compact=Fal
     indexed = {site:index_site(sites.get(site, {})) for site in ('home','work')}
     total_records = sum(n(sites.get(site,{}).get('rows_in_window')) for site in indexed)
     total_groups = sum(n(sites.get(site,{}).get('groups_total')) for site in indexed)
+    retired_records = sum(n(sites.get(site,{}).get('retired_records')) for site in indexed)
     suppressed_records = sum(n(sites.get(site,{}).get('suppressed_records')) for site in indexed)
     suppressed_groups = sum(len(sites.get(site,{}).get('suppressed_groups', [])) for site in indexed)
     reviewed = sum(len(v[1]) for v in indexed.values())
@@ -106,15 +107,17 @@ def render(report, fallback_text='', dashboard_url=None, demo=False, compact=Fal
     for site in indexed:
         data = sites.get(site, {})
         warnings += [site.title()+': '+str(w) for key in ('warnings','ai_errors','review_limit_notes') for w in data.get(key,[])]
-    source_gaps = sum(bool(c.get('warnings')) or n(c.get('records'))==0 for s in sites.values() for c in s.get('sources',{}).values())
-    all_filtered = not total_groups and bool(suppressed_groups)
+    source_gaps = sum(bool(c.get('warnings')) for s in sites.values() for c in s.get('sources',{}).values())
+    all_filtered = not total_groups and bool(suppressed_groups or retired_records)
     limited = bool(report.get('review_limited')) or reviewed < total_groups or (not total_groups and not all_filtered) or any(n(s.get('rows_not_grouped')) for s in sites.values())
     failed = report.get('status') == 'daily_failed'
     pipeline_problem = failed or bool(warnings) or bool(source_gaps) or set(sites) != {'home','work'} or report.get('status') in ('daily_partial','preview_with_ai_errors')
-    status = 'Report unavailable' if failed else 'Coverage needs attention' if pipeline_problem else 'All groups suppressed' if all_filtered else 'Limited AI review' if limited else 'Review completed'
+    status = 'Report unavailable' if failed else 'Coverage needs attention' if pipeline_problem else 'All records excluded by your settings' if all_filtered else 'Limited AI review' if limited else 'Review completed'
     headline = 'The nightly report could not be completed.' if failed else 'No AI review available' if not reviewed else f'{findings:,} finding'+('s' if findings!=1 else '')+' to investigate' if findings else 'No issues identified in the reviewed groups'
     if not failed and not total_groups and suppressed_groups:
         headline = 'All grouped records were suppressed by your filters'
+    if not failed and not total_groups and retired_records:
+        headline = 'Records were excluded by device retirement and filter settings'
     date = report.get('report_date') or when(report.get('generated_utc'))
     window = when(report.get('window_start')) + ' → ' + when(report.get('window_end_exclusive'))
     banner = notice('DESIGN PREVIEW · EXAMPLE DATA', 'Illustrative content for layout review. This is not a live report or a statement about the health of either site.') if demo else ''
@@ -123,6 +126,8 @@ def render(report, fallback_text='', dashboard_url=None, demo=False, compact=Fal
         f'{suppressed_records:,} records in {suppressed_groups:,} recurring groups were excluded before AI review. '
         'Collection totals include them; AI coverage counts refer to eligible groups. Filters were evaluated when this report was built. '
         'Use the Suppressed issues and Filters pages to inspect or restore them.') if suppressed_groups else ''
+    if retired_records:
+        suppression_note += notice('Retired devices excluded', f'{retired_records:,} records were excluded before AI review. Use Devices to inspect retired and permanently retired identities or restore a retired device.')
     metrics = ''.join(f'<td class="stack" width="33%" style="padding:16px 10px;border:1px solid #e2e8f0;background:#f8fafc;text-align:center;"><div style="font-size:25px;font-weight:700;color:#0f172a;">{value}</div><div style="font-size:11px;color:#64748b;margin-top:5px;">{label}</div></td>' for value,label in [(f'{total_records:,}','RECORDS IN WINDOW'),(f'{reviewed:,} / {total_groups:,}','GROUPS AI REVIEWED'),(str(source_gaps),'SOURCES WITH COVERAGE NOTES')])
     sections = []
     for site, (groups, assessments, items) in indexed.items():
@@ -140,15 +145,16 @@ def render(report, fallback_text='', dashboard_url=None, demo=False, compact=Fal
         source_cap=12 if compact else 32
         for source,check in sorted(sources.items())[:source_cap]:
             coverage=check.get('warnings',[])
-            label='Needs attention' if coverage else 'No records' if not n(check.get('records')) else 'Observed'
-            color='#92400e' if coverage or not n(check.get('records')) else '#0f766e'
+            label='Needs attention' if coverage else 'Retired' if n(check.get('retired_records'))==n(check.get('records')) and n(check.get('records')) else 'Quiet / historical' if not n(check.get('records')) else 'Observed'
+            color='#92400e' if coverage else '#64748b' if not n(check.get('records')) else '#0f766e'
             reviewed_source=sum(groups[k].get('source')==source for k in assessments)
-            description=e(coverage[0],170) if coverage else ''
+            description=e(coverage[0],170) if coverage else e('; '.join(check.get('notices',[])),170)
             source_rows.append(f'<tr><td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;overflow-wrap:anywhere;">{e(source,90)}<div style="font-size:10px;color:#64748b;margin-top:3px;">Last record: {e(when(check.get("last_record"),True))}</div>{("<div style=\"font-size:11px;color:#92400e;margin-top:4px;\">"+description+"</div>") if description else ""}</td><td align="right" style="padding:10px 8px;border-bottom:1px solid #e2e8f0;">{n(check.get("records")):,}<div style="font-size:10px;color:#64748b;">AI {reviewed_source}/{n(check.get("groups_total"))}</div></td><td align="right" style="padding:10px 8px;border-bottom:1px solid #e2e8f0;color:{color};font-size:11px;">{label}</td></tr>')
         source_table = '<table width="100%" cellspacing="0" cellpadding="0" style="font-size:12px;border-collapse:collapse;"><tr style="color:#64748b;background:#f8fafc;"><th align="left" style="padding:9px 8px;">SOURCE / COVERAGE</th><th align="right" style="padding:9px 8px;">RECORDS</th><th align="right" style="padding:9px 8px;">OBSERVATION</th></tr>'+''.join(source_rows)+'</table>' if source_rows else '<p style="font-size:13px;color:#92400e;">No source coverage data is available.</p>'
         if len(sources)>source_cap:
             source_table += f'<p style="font-size:12px;color:#64748b;">{len(sources)-source_cap} additional sources are listed in the local report.</p>'
         filter_line = (f'<br>Suppressed: {n(data.get("suppressed_records")):,} records in {len(data.get("suppressed_groups", [])):,} groups.' if data.get('suppressed_groups') else '')
+        if data.get('retired_records'): filter_line += f'<br>Retired devices: {n(data.get("retired_records")):,} records excluded.'
         sections.append(f'<div style="margin-top:30px;padding-top:22px;border-top:2px solid #e2e8f0;"><div style="font-size:11px;font-weight:700;color:#0f766e;letter-spacing:1.5px;">{site.upper()} NETWORK</div><h2 style="font-size:21px;margin:7px 0 9px;color:#0f172a;">{len(items):,} findings · {len(sources):,} sources</h2><p style="font-size:12px;line-height:1.7;color:#64748b;margin:0 0 14px;">{n(data.get("rows_scanned")):,} / {n(data.get("rows_in_window")):,} records scanned · {len(assessments):,} / {n(data.get("groups_total")):,} eligible groups reviewed<br>{unreviewed:,} groups unreviewed; {flagged:,} carry a source-severity or keyword flag. Flags are not confirmed incidents.{filter_line}</p>{cards}<h3 style="font-size:13px;margin:22px 0 8px;">Collection coverage</h3>{source_table}</div>')
     note_list=''.join('<li style="margin-bottom:7px;">'+e(w,350)+'</li>' for w in warnings[:12])
     if len(warnings)>12:
