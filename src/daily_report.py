@@ -31,11 +31,17 @@ spec.loader.exec_module(core)
 _rollup_spec = importlib.util.spec_from_file_location('event_rollups', Path(__file__).with_name('event_rollups.py'))
 event_rollups = importlib.util.module_from_spec(_rollup_spec)
 _rollup_spec.loader.exec_module(event_rollups)
+_review_spec = importlib.util.spec_from_file_location('efficient_review', Path(__file__).with_name('efficient_review.py'))
+efficient = importlib.util.module_from_spec(_review_spec)
+_review_spec.loader.exec_module(efficient)
 spec = importlib.util.spec_from_file_location('suppression_store', Path(__file__).with_name('suppression_rules.py'))
 filters = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(filters)
-VERSION = 'disk-balanced-v7-filters'
-DEFAULT_GROUP_BUDGET = 2000
+spec = importlib.util.spec_from_file_location('device_inventory', Path(__file__).with_name('device_inventory.py'))
+devices = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(devices)
+VERSION = 'disk-balanced-v9-devices'
+DEFAULT_GROUP_BUDGET = 4000
 DEFAULT_ANALYSIS_SECONDS = 2700
 KERNEL_UPTIME = re.compile(r'^\[\s*\d{1,12}\.\d{1,9}\]\s+')
 HA_DNS_CHECK = re.compile(r'INFO \(MainThread\) \[supervisor\.resolution\.checks\.base\] Run check for (?:dns_server_failed|dns_server_ipv6_error)/dns_server\s*')
@@ -203,7 +209,15 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
         # Keep every log eligible when rules cannot be read; never silently hide data.
         filter_snapshot = {'matcher': filters.MATCHER, 'evaluated_utc': now, 'revision': None, 'rules': []}
         filter_error = 'Suppression filters could not be loaded; none were applied (' + type(error).__name__ + ').'
-    report = {'status': 'preview', 'generator': VERSION, 'generated_utc': core.iso(now),
+    device_error = None
+    try:
+        device_snapshot = devices.snapshot(devices.database_path(base), now,
+            required=(base/'devices/enabled').exists())
+    except Exception as error:
+        device_snapshot = {'evaluated_utc': now, 'revision': None, 'retired': {}}
+        device_error = 'Device retirement settings could not be loaded; all devices remain eligible (' + type(error).__name__ + ').'
+    report = {'status': 'preview','devices': {'revision': device_snapshot['revision'], 'error': device_error,
+        'retired_count': len(device_snapshot['retired']), 'policy': 'Retired identities are excluded before grouping. Original logs follow the normal retention policy.'}, 'generator': VERSION, 'generated_utc': core.iso(now),
               'window_start': start, 'window_end_exclusive': end,
               'scope': 'All stored records in this window are scanned; AI reviews a prioritized sample balanced across sources.',
               'time_basis': 'NAS receive time, then event time, then first import time when both are missing.',
@@ -245,19 +259,21 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
                     'transfer_rollup_rows': 0, 'kernel_uptime_rows': 0, 'ha_check_announcement_rows': 0,
                     'family_rollup_rows': {}, 'family_groups_collapsed': 0,
                     'batches_completed': 0, 'batches_attempted': 0,
-                    'suppressed_groups': [], 'suppressed_records': 0}
+                    'suppressed_groups': [], 'suppressed_records': 0, 'retired_records': 0, 'retired_devices': {}}
             if filter_error:
                 data['warnings'].append(filter_error)
+            if device_error:
+                data['warnings'].append(device_error)
             if entry.get('status') != 'complete':
                 data['warnings'].append('Collection status: ' + str(entry.get('status', 'missing')))
             if not sources:
                 data['warnings'].append('No sources available; coverage is unknown.')
             for source in sources:
                 print(site + ': grouping ' + json.dumps(source), file=sys.stderr, flush=True)
-                check = core.registry_export_check(known.get(source, {
-                    'exported_utc': None, 'warnings': ['Source exists in history but is missing from the current registry.']}), now, freshness_hours)
+                check = devices.source_check(known.get(source, {
+                    'exported_utc': None, 'discovery_status': 'historical', 'warnings': [], 'notices': ['Source retained in history; no current export was discovered.']}), now, freshness_hours, core.registry_export_check)
                 check.update(records=0, rows_scanned=0, malformed_rows=0, first_record=None, last_record=None,
-                             suppressed_records=0, suppressed_groups=0,
+                             suppressed_records=0, suppressed_groups=0, retired_records=0,
                              event_ahead_of_receive_over_5m=0, maximum_event_lead_seconds=0)
                 data['sources'][source] = check
                 stamp = 'COALESCE(r_utcsec,utcsec,first_seen_utc)'
@@ -287,6 +303,15 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
                             raw = core.privacy.record(json.loads(raw_json))
                             if not isinstance(raw, dict):
                                 raise ValueError('Expected a log object')
+                            device_id = devices.identity(site, source, raw)
+                            retired = device_snapshot['retired'].get(device_id)
+                            if retired:
+                                data['retired_records'] += 1
+                                check['retired_records'] += 1
+                                excluded = data['retired_devices'].setdefault(device_id, {'name': retired['name'],
+                                    'state': retired['state'], 'records': 0, 'scope': retired['scope']})
+                                excluded['records'] += 1
+                                continue
                             message, prefix, transfer, kernel_prefix = prepare(raw)
                             before_rollup = message
                             message, rule, varied = family_rollup(raw, message)
@@ -295,7 +320,7 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
                                 identity += [rule]
                             key = hashlib.sha256(core.compact(identity).encode()).hexdigest()
                             priority, announcement = classify_priority(raw, message)
-                            payload = {'id': site + '-' + key[:16], 'source': source, 'suppression_key': key,
+                            payload = {'id': site + '-' + key[:16], 'source': source, 'suppression_key': key, 'device_id': device_id,
                                 'host': core.clean(raw.get('host') or raw.get('ip'), 100),
                                 'ip': core.clean(raw.get('ip'), 100), 'tag': core.clean(raw.get('tag'), 100),
                                 'program': core.clean(raw.get('prog'), 100),
@@ -323,7 +348,7 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
                     scratch.executemany('''INSERT INTO rollup_values VALUES(?,?,?,1)
                         ON CONFLICT(key,field,value) DO UPDATE SET n=rollup_values.n+1''', variants)
                 if not check['records']:
-                    check['warnings'].append('No records in this report window; health unknown.')
+                    check['notices'].append('No recent qualifying messages; device health is unknown.')
                 if check['malformed_rows']:
                     check['warnings'].append(str(check['malformed_rows']) + ' malformed records could not be grouped.')
                 if check['event_ahead_of_receive_over_5m']:
@@ -361,10 +386,10 @@ def collect(history, base, hours=24, budget=DEFAULT_GROUP_BUDGET, freshness_hour
             data['groups_total_before_suppression'] = data['groups_total'] + len(data['suppressed_groups'])
             data['omitted_groups'] = data['groups_total'] - len(selected)
             data['records_in_selected_groups'] = sum(group['count'] for group in selected)
-            data['records_outside_ai_selection'] = data['rows_in_window'] - data['suppressed_records'] - data['records_in_selected_groups']
+            data['records_outside_ai_selection'] = data['rows_in_window'] - data['retired_records'] - data['suppressed_records'] - data['records_in_selected_groups']
             data['eligible_records'] = scratch.execute('SELECT COALESCE(SUM(n),0) FROM grouped WHERE site=?', (site,)).fetchone()[0]
             data['grouped_records'] = data['eligible_records'] + data['suppressed_records']
-            if data['grouped_records'] + data['malformed_rows'] != data['rows_scanned']:
+            if data['grouped_records'] + data['retired_records'] + data['malformed_rows'] != data['rows_scanned']:
                 raise ValueError('Internal row accounting mismatch; report not published')
             data['flagged_groups_total'] = 0
             data['flagged_groups_outside_ai_selection'] = 0
@@ -400,14 +425,20 @@ def review_summary(report):
             'family_groups_collapsed': data.get('family_groups_collapsed', 0),
             'suppressed_groups': len(data.get('suppressed_groups', [])),
             'suppressed_records': data.get('suppressed_records', 0),
+            'retired_records': data.get('retired_records', 0),
             'time_limit_reached': bool(data.get('review_limit_notes')),
             'ai_errors': data['ai_errors']}
     return result
 
 
-def analyze(report, url, model, timeout, caller=core.call_ollama, max_runtime=DEFAULT_ANALYSIS_SECONDS,
-            clock=time.monotonic, progress=None):
+def analyze(report, url, model, timeout, caller=None, max_runtime=DEFAULT_ANALYSIS_SECONDS,
+            clock=time.monotonic, progress=None, batcher=None):
     """Alternate flagged work across sites, then routine work, with one deadline."""
+    compact = caller is None
+    caller = caller or efficient.call_ollama
+    batcher = batcher or (efficient.batches if compact else core.batches)
+    report['review_protocol'] = efficient.VERSION if compact else 'custom-caller'
+    report['inference_metrics'] = []
     began = clock()
     deadline = began + max_runtime
     report.update(model=model, ollama_url=url, analysis_budget_seconds=round(max_runtime, 1),
@@ -431,7 +462,7 @@ def analyze(report, url, model, timeout, caller=core.call_ollama, max_runtime=DE
                     for source in sorted(by_source):
                         if by_source[source]:
                             ordered.append(by_source[source].popleft())
-                queues[site][priority] = deque(core.batches(ordered))
+                queues[site][priority] = deque(batcher(ordered))
         except ValueError as error:
             data['ai_errors'].append(core.clean(error, 600))
             failed.add(site)
@@ -458,7 +489,10 @@ def analyze(report, url, model, timeout, caller=core.call_ollama, max_runtime=DE
                       ' (priority ' + str(priority) + ')', file=sys.stderr, flush=True)
                 call_began = clock()
                 try:
-                    answers = core.validate({'assessments': caller(url, model, batch, min(timeout, remaining))}, batch)
+                    result = caller(url, model, batch, min(timeout, remaining))
+                    answers = core.validate({'assessments': result}, batch)
+                    if hasattr(result, 'metrics'):
+                        report['inference_metrics'].append(dict(result.metrics, site=site, priority=priority))
                     data['assessments'].extend(answers)
                     data['batches_completed'] += 1
                 except Exception as error:
@@ -505,6 +539,7 @@ def audit(report):
                 'groups_selected': len(data['groups']),
                 'suppressed_groups': len(data.get('suppressed_groups', [])),
                 'suppressed_records': data.get('suppressed_records', 0),
+                'retired_records': data.get('retired_records', 0),
                 'sources': {source: {key: info[key] for key in ('records', 'groups_total', 'groups_selected',
                     'flagged_groups_outside_ai_selection', 'reported_critical_records', 'event_ahead_of_receive_over_5m',
                     'maximum_event_lead_seconds', 'warnings')}
@@ -540,6 +575,7 @@ def render(report, zone):
         lines.append('SUPPRESSED: ' + str(data.get('suppressed_records', 0)) + ' records in ' +
                      str(len(data.get('suppressed_groups', []))) + ' recurring groups, excluded by your filters before AI review. '
                      'Collection counts still include these records. Manage filters in the report viewer.')
+        lines.append('RETIRED DEVICES: ' + str(data.get('retired_records', 0)) + ' records excluded before AI review. Manage devices in the report viewer.')
         lines += ['COLLECTION: ' + core.clean(warning, 500) for warning in data['warnings']]
         lines += ['AI ERROR: ' + core.clean(error, 500) for error in data['ai_errors']]
         lines += ['REVIEW LIMIT: ' + core.clean(note, 500) for note in data.get('review_limit_notes', [])]
@@ -561,6 +597,7 @@ def render(report, zone):
                          str(reviewed) + '/' + str(check['groups_total']) + ' groups; last record ' +
                          core.display_time(check['last_record'], zone) + '.')
             lines += ['  COVERAGE: ' + core.clean(warning, 500) for warning in check['warnings']]
+            lines += ['  NOTE: ' + core.clean(note, 500) for note in check.get('notices', [])]
             if check['reported_critical_records']:
                 lines.append('  REPORTED CRITICAL LEVEL: ' + str(check['reported_critical_records']) +
                              ' records. This is the source-reported severity, not a confirmed incident.')

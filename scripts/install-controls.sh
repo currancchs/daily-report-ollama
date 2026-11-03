@@ -10,10 +10,16 @@ for source in "$root"/src/*.py; do
     }
 done
 test -f /etc/ai-monitor/monitor.env
-grep -Fq 'include /etc/nginx/ai-monitor-controls.d/*.conf;' /etc/nginx/sites-available/ai-monitor-viewer || {
-    echo 'Merge the controls include into your existing viewer server; keep its ACLs. See docs/FILTERS.md.' >&2
-    exit 1
-}
+python3 - <<'PY'
+from pathlib import Path
+import re
+config = Path('/etc/nginx/sites-available/ai-monitor-viewer')
+enabled = Path('/etc/nginx/sites-enabled/ai-monitor-viewer')
+if not enabled.is_symlink() or enabled.resolve(strict=True) != config.resolve(strict=True):
+    raise SystemExit('The enabled viewer must link to sites-available/ai-monitor-viewer.')
+if not re.search(r'^\s*include\s+/etc/nginx/ai-monitor-controls[.]d/[*][.]conf\s*;\s*(?:#.*)?$', config.read_text(), re.M):
+    raise SystemExit('Merge the controls include into the existing viewer server; keep its ACLs. See docs/FILTERS.md.')
+PY
 nginx -t
 apt-get update
 apt-get install -y python3-venv
@@ -31,15 +37,27 @@ PY
     chmod 0640 /etc/ai-monitor-web/session.key
 fi
 runuser -u ai-monitor -- python3 -I /opt/ai-monitor/suppression_rules.py initialize
+runuser -u ai-monitor -- python3 -I /opt/ai-monitor/device_inventory.py initialize
+if test -f /var/lib/ai-monitor/events.sqlite; then
+    runuser -u ai-monitor -- python3 -I /opt/ai-monitor/device_inventory.py refresh
+fi
 install -o root -g root -m 0644 "$root/systemd/ai-monitor-web.service" /etc/systemd/system/
 install -d -o root -g root -m 0755 /etc/nginx/ai-monitor-controls.d
 install -o root -g root -m 0644 "$root/config/nginx-controls.conf" /etc/nginx/ai-monitor-controls.d/controls.conf
 nginx -t
+python3 - <<'PY'
+import subprocess
+result = subprocess.run(['nginx', '-T'], check=True, capture_output=True, text=True)
+if '# configuration file /etc/nginx/ai-monitor-controls.d/controls.conf:' not in result.stdout:
+    raise SystemExit('NGINX did not load the suppression route configuration.')
+PY
 systemctl daemon-reload
 systemctl enable --now ai-monitor-web.service
 systemctl restart ai-monitor-web.service
+runuser -u ai-monitor -- python3 -I /opt/ai-monitor/run.py controls_readiness --target backend
 systemctl reload nginx
-# Only expose dashboard links after the web service starts. Preserve other settings.
+runuser -u ai-monitor -- python3 -I /opt/ai-monitor/run.py controls_readiness --target viewer
+# Publish links only after the actual page is reachable through NGINX.
 python3 - <<'PY'
 from pathlib import Path
 p=Path('/etc/ai-monitor/monitor.env')

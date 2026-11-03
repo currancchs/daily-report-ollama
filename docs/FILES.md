@@ -5,11 +5,13 @@
 | File | Purpose |
 |---|---|
 | `src/collect_sites.py` | Retrieve and verify Home/Work exports via SMB or read-only mounts. |
+| `src/controls_readiness.py` | Wait for the real suppression page before the installer publishes links. |
 | `src/daily_job.py` | Schedule-aware build, report integrity checks, retention and separate delivery. |
 | `src/daily_report.py` | Full-window aggregation, balanced selection, AI review budgets and reporting. |
 | `src/dashboard.py` | Render checked Home/Work summaries, coverage, timeline and dated history. |
 | `src/dashboard_progress.py` | Write best-effort atomic stage/batch/wake progress records. |
 | `src/event_rollups.py` | Recognize specific repetitive event families and retain distinguishing evidence. |
+| `src/efficient_review.py` | Compact evidence/replies, complete group validation, bounded split retries and inference timing. |
 | `src/gmail_report.py` | Interactive local Gmail configuration and TLS SMTP delivery/deduplication. |
 | `src/html_report.py` | Escape and render bounded HTML from report metadata. |
 | `src/import_synology.py` | Validate archives and deduplicate/redact newly imported SQLite events. |
@@ -34,6 +36,7 @@
 - `scripts/nas-daily-export.sh`: DSM scheduled-task wrapper.
 - `scripts/Install-OllamaPowerGuard.ps1` and `Ollama-PowerGuard.ps1`: optional Windows power controls.
 - `scripts/test.py`: run the offline regression programs.
+- `scripts/test-remote-syslog.sh`: optional Proxmox guest forwarding/filter probes; see `docs/SYSLOG-CHECK.md`.
 - `systemd/`: build, delivery and publication services/timers.
 - `config/`: non-secret templates, loopback NGINX config, and optional power-unit examples.
 
@@ -44,6 +47,7 @@
 - `docs/SETUP.md`: complete prerequisites, configuration and commands.
 - `docs/POWER.md`: optional wake and shutdown setup.
 - `docs/FILTERS.md`: matching semantics, installation, verification and filter-store operations.
+- `src/device_inventory.py` and `docs/DEVICES.md`: observed device aliases, retirement, restoration and permanent exclusions without deleting events.
 - `docs/UPGRADE.md`: existing-install migration boundaries.
 - `docs/ARCHITECTURE.md`: implementation and dashboard roadmap.
 - `SECURITY.md`: data boundaries and publishing exclusions.

@@ -20,6 +20,8 @@ sudo bash scripts/install-controls.sh
 
 This installs Flask and Gunicorn in a dedicated virtual environment, creates the SQLite filter store and a local random session key, enables `ai-monitor-web.service`, adds the NGINX controls route, and publishes dashboard links. It does not enable build/email/power timers. Software installation needs Internet access. The core collector and build still use standard-library Python.
 
+Before publishing those links, the installer checks the enabled NGINX configuration and waits up to 25 seconds each for the backend and the reloaded viewer route. A brief startup connection failure or reload-time 404 can recover; a persistent failure stops the installer with an error. The checks only read the filters page and use the configured viewer origin.
+
 Open `http://127.0.0.1:8088/controls/` using the existing SSH-forwarding instructions. Keep the browser's hostname and port identical to `AI_MONITOR_VIEWER_ORIGIN` in `/etc/ai-monitor/monitor.env`. The default is `http://127.0.0.1:8088`. A new report built with this release is required for Ignore buttons; older snapshots do not contain trustworthy full matching signatures.
 
 The static overview at `/`, current saved HTML at `/report.html`, dated history and five-minute publication timer remain available. The new application is mounted only at `/controls/`; opening it makes no NAS, Ollama or SMTP calls.
