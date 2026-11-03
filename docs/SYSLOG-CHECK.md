@@ -52,3 +52,5 @@ The script appends synthetic records to existing application logs, writes journa
 These probes check the configured input-to-receiver paths and representative filters. They do not prove that updated applications still write normal events to those paths, that every severity branch works, or that the NAS export and AI review stages work. Confirm a normal application event when an update changes its logging behavior.
 
 Validation before publication: Bash syntax checks, embedded Python parsing, and mocked guest routing/failure/timeout checks. The combined ten-guest script has not yet been confirmed end-to-end on the live NAS.
+
+For the separate three-guest work host, see [Work syslog check](WORK-SYSLOG-CHECK.md).
