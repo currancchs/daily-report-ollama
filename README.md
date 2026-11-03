@@ -18,6 +18,7 @@ This is a reusable adaptation of my setup, prepared October 31, 2026. Personal e
 - [Current capabilities and dashboard roadmap](docs/ARCHITECTURE.md)
 - [Privacy and data boundaries](SECURITY.md)
 - [Existing-install upgrade notes](docs/UPGRADE.md)
+- [Post-update Proxmox syslog checks](docs/SYSLOG-CHECK.md)
 - [Optional Wake-on-LAN and shutdown guard](docs/POWER.md)
 - [Optional Ignore buttons, suppressed issues and filter management](docs/FILTERS.md)
 - [Device list, retirement and quiet-source handling](docs/DEVICES.md)
