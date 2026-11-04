@@ -1,4 +1,4 @@
-"""Narrow grouping rules for AMI, Kea, Configurator and NAS logout logs.
+"""Narrow grouping rules for repeated application and NAS logs.
 
 Only named volatile fields vary. Unknown formats remain unchanged; grouped denials still require review.
 This module performs no I/O and does not discard records or classify them benign.
@@ -8,7 +8,7 @@ import ipaddress
 import json
 import re
 
-VERSION = 'event-rollups-v3-review'
+VERSION = 'event-rollups-v4-immich'
 
 NOTES = {
     'ami_denied_session': 'Repeated AMI RequestNotAllowed errors grouped by account, request type, service, addresses and transport. Only PID, timestamps, session ID and remote source port vary. These denials remain errors for review; grouping does not resolve or suppress them.',
@@ -16,6 +16,8 @@ NOTES = {
     'ami_success_session': 'Repeated AMI SuccessfulAuth events grouped by account, service, addresses, transport and password-use flag. PID, timestamps, session ID and remote source port vary. Counts and time range are retained; successful authentication does not establish authorized use.',
     'kea_dhcp4_info': 'Repeated Kea DHCPv4 INFO events grouped by client MAC/client ID, event type and lease address. Process/thread/transaction IDs vary; LEASE_REUSE remaining seconds may vary. Counts and time range are retained. INIT_REBOOT is a DHCP state, not proof of a device reboot.',
     'configurator_local_http200': 'Repeated File Editor localhost GET / HTTP 200 access entries; only the embedded log timestamp varies. Count, time range and original examples are retained. These responses do not establish overall Home Assistant health.',
+    'immich_ffmpeg_banner': 'Repeated Immich MediaRepository FFmpeg banners grouped by their complete banner text. Only the Nest PID and embedded timestamp vary; counts, time range and sampled values are retained. A banner logged at ERROR does not prove harmless startup activity or identify the underlying FFmpeg failure. Related failures remain separate and require review.',
+    'immich_job_failure': 'Repeated Immich job failures grouped by process, job handler and complete error text. Only the Nest PID, embedded timestamp and structured context ID vary; counts, time range and sampled IDs are retained, with full original records in history. Different handlers, error details and exit codes stay separate. These remain errors; grouping neither suppresses nor resolves them.',
 }
 AMI_PREFIX = re.compile(r'^SECURITY\[(?P<pid>\d+)\]: res_security_log\.c:\d+ in security_event_stasis_cb: ')
 PAIR = re.compile(r'([A-Za-z][A-Za-z0-9]*)="([^"\r\n\\]*)"')
@@ -174,7 +176,48 @@ def ftp_logout(raw, message):
     return normalized, 'nas_ftp_logout_bytes', {k:found[k].strip() for k in ('uploaded','downloaded')}
 
 
+IMMICH_NEST = re.compile(
+    r'^\[Nest\] (?P<pid>[0-9]+)[ \t]+-[ \t]+'
+    r'(?P<timestamp>[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}, [0-9]{1,2}:[0-9]{2}:[0-9]{2} [AP]M)'
+    r'[ \t]+ERROR[ \t]+')
+IMMICH_FFMPEG = re.compile(
+    r'\[Microservices:MediaRepository\] ffmpeg version [A-Za-z0-9.+_-]+ '
+    r'Copyright \(c\) [0-9]{4}-[0-9]{4} the FFmpeg developers')
+IMMICH_JOB = re.compile(
+    r'\[Microservices:\{"id":"(?P<context_id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
+    r'[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"\}\] '
+    r'Unable to run job handler \((?:AssetGenerateThumbnails|AssetExtractMetadata)\): '
+    r'Error: [^\r\n]+')
+
+
+def immich(raw, message):
+    # Restrict this to the observed program and two complete message formats.
+    # In particular, do not erase arbitrary UUIDs, filenames or error numbers.
+    if raw.get('prog') != 'immich-web':
+        return None
+    header = IMMICH_NEST.match(message)
+    if not header:
+        return None
+    try:
+        datetime.strptime(header['timestamp'], '%m/%d/%Y, %I:%M:%S %p')
+    except ValueError:
+        return None
+    body = message[header.end():]
+    job = IMMICH_JOB.fullmatch(body)
+    if not job and not IMMICH_FFMPEG.fullmatch(body):
+        return None
+    varied = {'pid': header['pid'], 'log_timestamp': header['timestamp']}
+    if job:
+        varied['context_id'] = job['context_id']
+        body = body[:job.start('context_id')] + '<varies>' + body[job.end('context_id'):]
+    prefix = message[:header.end()]
+    for field in ('timestamp', 'pid'):
+        prefix = prefix[:header.start(field)] + '<varies>' + prefix[header.end(field):]
+    return prefix + body, 'immich_job_failure' if job else 'immich_ffmpeg_banner', varied
+
+
 def rollup(raw, message):
     if not isinstance(message, str):
         return message, '', {}
-    return ami(raw, message) or kea(raw, message) or configurator(raw, message) or ftp_logout(raw, message) or (message, '', {})
+    return (ami(raw, message) or kea(raw, message) or configurator(raw, message)
+            or ftp_logout(raw, message) or immich(raw, message) or (message, '', {}))
