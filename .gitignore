@@ -23,3 +23,14 @@ reports/
 logs/
 *.log
 *.zip
+
+# Windows PowerGuard runtime data and private rollback copies.
+recurring-policy.json
+unattended-ticket.json
+boot-state.json
+last-result.json
+decisions-*.jsonl
+shutdown-disabled
+powerguard.lock
+deployment.lock
+backups/

@@ -80,7 +80,7 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances 
 $settings.Enabled = $false
 $registration = @{
     TaskName=$taskName; Action=$action; Trigger=$triggers; Principal=$principal; Settings=$settings
-    Description='After verified AI log report completion, shut down only if no interactive users are logged in; 04:00-06:00 New York.'
+    Description='Verified report shutdown: no users or explicitly authorized unattended locked console; 04:00-06:00 New York.'
 }
 Register-ScheduledTask @registration -Force | Out-Null
 Write-Host 'Installed. The shutdown task is DISABLED until the Wake-on-LAN test passes.'

@@ -34,7 +34,10 @@
 - `requirements-web.txt`: Flask/Gunicorn for the optional web service.
 - `scripts/run.py`: loads `monitor.env` without evaluating shell code, then runs a component.
 - `scripts/nas-daily-export.sh`: DSM scheduled-task wrapper.
-- `scripts/Install-OllamaPowerGuard.ps1` and `Ollama-PowerGuard.ps1`: optional Windows power controls.
+- `scripts/Install-OllamaPowerGuard.ps1`: first installation of the optional Windows guard; creates its protected local configuration and DPAPI pairing file, with the task disabled.
+- `scripts/Ollama-PowerGuard.ps1`: Windows PowerShell 5.1 guard with signed report checks, per-session observations, non-forced shutdown, and optional recurring overnight authorization.
+- `scripts/Update-OllamaPowerGuard.ps1`: guarded update and rollback for an existing Windows installation; see `docs/POWER.md` before running it.
+- `scripts/Test-PowerGuard.ps1`: offline PowerGuard regression tests using synthetic keys and intercepted shutdown/system/network probes.
 - `scripts/test.py`: run the offline regression programs.
 - `scripts/test-remote-syslog.sh`: optional Proxmox guest forwarding/filter probes; see `docs/SYSLOG-CHECK.md`.
 - `systemd/`: build, delivery and publication services/timers.
@@ -45,13 +48,15 @@
 - `tests/`: synthetic regression fixtures and offline checks.
 - `examples/`: synthetic HTML preview and matching JSON; not real device status.
 - `docs/SETUP.md`: complete prerequisites, configuration and commands.
-- `docs/POWER.md`: optional wake and shutdown setup.
+- `docs/POWER.md`: optional wake and shutdown setup, recurring-policy audit/activation, local decision logs, stop procedure, and rollback.
 - `docs/FILTERS.md`: matching semantics, installation, verification and filter-store operations.
 - `src/device_inventory.py` and `docs/DEVICES.md`: observed device aliases, retirement, restoration and permanent exclusions without deleting events.
 - `docs/UPGRADE.md`: existing-install migration boundaries.
 - `docs/ARCHITECTURE.md`: implementation and dashboard roadmap.
 - `SECURITY.md`: data boundaries and publishing exclusions.
 - `LICENSE`: MIT license for the reusable source/documentation.
-- `.github/workflows/checks.yml`: Linux CI runner for offline tests and shell syntax.
+- `.github/workflows/checks.yml`: offline Python/shell checks and Windows PowerShell guard checks.
 
 The package intentionally omits old installation-specific upgrade wrappers, real NAS snapshots, credentials, pairing keys, model weights, screenshot captures of live logs, and unrelated troubleshooting files.
+
+PowerGuard's `config.json`, `pairing-key.dpapi`, `recurring-policy.json`, `unattended-ticket.json`, `boot-state.json`, decision logs, latest result, lock files, stop file, and installation backups are private operational files under the installed guard directory. They are not source files or test fixtures and must not be committed.
