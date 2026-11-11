@@ -4,6 +4,16 @@ This package is a portable source release, not an automatic patch for an existin
 
 For my working installation, publishing this source repository does not require reinstalling anything. Keep existing NAS tasks, schedules, Gmail configuration, pairing keys, and viewer access rules.
 
+## Saved partial report shutdown update
+
+The coordinator now treats a verified saved partial report with AI batch errors as a finished run. The `ai_error` stop reason qualifies alongside `selected_groups_complete` and `time_budget`; `ollama_unavailable` remains blocked. Report verification, build locking, recency, configured model/server, and both-site checks remain in place. The report retains its errors and partial status.
+
+This is a drop-in update to the coordinator's `/opt/ai-monitor/power_status.py` for an existing compatible installation. Back up the installed file, review and preserve any deployment-specific settings, then apply the policy change or install the reviewed module. Restart `ai-monitor-power-status.service` and confirm that it is active. Keep the service's existing `run.py` invocation and `/etc/ai-monitor/monitor.env`, so it uses the same model, server, and timezone as the daily build. Restore the backup and restart the same service if validation fails.
+
+This update does not require replacing the Windows guard, regenerating pairing keys, rerunning installers, changing wake/shutdown schedules, or rebuilding a report. Existing newer Windows guard versions should be retained. Publishing the repository does not update an installed coordinator automatically.
+
+## Full source migration
+
 For a deliberate future migration:
 
 1. Save the installed source and unit files, and record timer settings. Store any backup containing credentials outside Git.

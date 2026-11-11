@@ -241,6 +241,27 @@ sudo systemctl disable --now ai-monitor-build.timer ai-monitor-send.timer ai-mon
 
 This does not interrupt an already running service. Let it finish before changing source. Keep raw exports/caches restricted; redaction applies to newly imported/report-bound text and does not sanitize the NAS originals.
 
+### Viewer returns 403 after a VLAN or subnet change
+
+An HTTP 403 means an HTTP server responded; it differs from a connection timeout or refusal. Confirm that the browser reached the intended coordinator and viewer port. If the client moved to another VLAN or VPN subnet, inspect the active viewer allowlist and its error log before changing routing:
+
+```bash
+sudo nginx -T 2>&1 | grep -nE 'configuration file|listen |server_name|allow |deny |error_log'
+sudo tail -n 30 /var/log/nginx/error.log
+```
+
+Use the configured error-log path if it differs. An `access forbidden by rule` entry for the attempted request identifies an address-access restriction; other 403 causes require their own investigation. Keep configuration and log output private.
+
+If the new client subnet is intended to have access, edit the installed viewer server in `/etc/nginx/sites-available/ai-monitor-viewer`. Keep existing restrictions and add only the required LAN/VPN CIDR **before** `deny all;`. For example, `allow 192.0.2.0/24;` illustrates the syntax using a reserved documentation range; replace it with the actual approved subnet. NGINX uses the first matching access rule. See the [official address-access documentation](https://nginx.org/en/docs/http/ngx_http_access_module.html).
+
+Validate the changed configuration before reloading:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Retest from the affected client, and preserve these installation-specific ACLs during upgrades. Keep the listener private and the allowlist narrow; removing `deny all` or exposing the reports publicly is not the remedy. If already logged in as root on the coordinator, omit `sudo`. The [`-t` and `-T` options](https://nginx.org/en/docs/switches.html) validate configuration; `-T` also prints the loaded files.
+
 ## Optional issue filters
 
 After validating the daily report, follow [FILTERS.md](FILTERS.md) to add Ignore buttons, a suppressed-issues view and reversible filter management. The feature preserves the static dashboard/history and defaults to indefinite suppression until a filter is removed.

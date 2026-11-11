@@ -43,15 +43,14 @@ def completion(base, now=None):
                 raise ValueError('Report times are not recent and ordered')
             if datetime.fromtimestamp(started, ZONE).date() != local.date():
                 raise ValueError('Build was not started today')
-            # A failed/offline model should leave the PC available for diagnosis.
+            # Verified saved partial reports count as finished; offline preflight remains blocked.
             if metadata.get('model') != job.MODEL or metadata.get('ollama_url') != job.OLLAMA:
                 raise ValueError('Report did not use the configured Ollama server')
-            if metadata.get('analysis_stop_reason') not in ('selected_groups_complete', 'time_budget'):
+            if metadata.get('analysis_stop_reason') not in ('selected_groups_complete', 'time_budget', 'ai_error'):
                 raise ValueError('AI review did not finish normally')
-            if set(metadata['sites']) != {'home', 'work'}:
+            if (not isinstance(metadata['sites'], dict) or set(metadata['sites']) != {'home', 'work'} or
+                    any(not isinstance(site, dict) for site in metadata['sites'].values())):
                 raise ValueError('Both sites must be present in the report')
-            if any(site.get('ai_errors') for site in metadata['sites'].values()):
-                raise ValueError('AI review contains errors')
             result.update(ready=True, reason='report_ready', started_utc=started, completed_utc=finished)
     except Exception:
         result['reason'] = 'report_not_verified_or_build_running'

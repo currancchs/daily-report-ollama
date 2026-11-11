@@ -9,6 +9,8 @@ Included pieces:
 - `Ollama-PowerGuard.ps1`: requires a verified completed report, checks the reporting date and boot time, refuses while any interactive session exists (including disconnected sessions), waits through a grace period, and checks again. It never uses forced application termination.
 - `Install-OllamaPowerGuard.ps1`: requires the target IP/MAC and coordinator IP; stores the pairing key with DPAPI and installs a **disabled** scheduled task.
 
+The completion policy accepts a verified saved partial report after AI batch errors, as well as a completed review or a review that reached its time budget. The errors and coverage limits remain visible in the report. A model that was unavailable during preflight (`ollama_unavailable`) still blocks automatic shutdown. Missing, failed, corrupted, stale, or actively rebuilding reports also remain ineligible. The signed response and Windows guard still enforce their reporting-date, boot-time, session, and shutdown-window checks.
+
 ## Coordinator
 
 Set the real MAC and subnet broadcast in `/etc/ai-monitor/monitor.env`. Do not use the documentation-only example MAC/address:

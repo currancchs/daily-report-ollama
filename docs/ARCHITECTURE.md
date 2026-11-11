@@ -2,7 +2,7 @@
 
 The NAS exporter produces snapshots and a manifest with source names, row counts, hashes, timestamps, and partial-failure details. The collector validates these and imports into deduplicated SQLite history. Four Log Center table shapes are supported: syslog, system/general, connection, and transfer events.
 
-The reporting layer aggregates on disk, rolls up known repetitive families, and preserves source boundaries, occurrence counts, first/last times, and bounded examples. Review prioritizes flagged groups across Home and Work before routine groups. Defaults allow up to 2,000 selected groups per site within a 45-minute overall build budget; reaching a limit is surfaced in the result.
+The reporting layer aggregates on disk, rolls up known repetitive families, and preserves source boundaries, occurrence counts, first/last times, and bounded examples. Review prioritizes flagged groups across Home and Work before routine groups. Defaults allow up to 4,000 selected groups per site within a 45-minute overall build budget; reaching a limit is surfaced in the result.
 
 The model receives instructions that log text is untrusted evidence. Returned JSON must match the expected assessment structure and event IDs. There are no agent tools or automatic remediation commands. AI conclusions remain suggestions to check against source evidence.
 
@@ -31,6 +31,6 @@ Detailed stage information begins with the first run after the update; older rep
 
 ## Release state and remaining work
 
-The dashboard update is installed on the original coordinator and passed its offline, NGINX and web checks. This portable adaptation includes the final permission-handling fix. The new suppression controls are implemented and tested offline; deployment is not yet confirmed. The first-install and optional controls scripts have not been run on a fresh Debian deployment.
+The dashboard update is installed on the original coordinator and passed its offline, NGINX and web checks. This portable adaptation includes the final permission-handling fix. The suppression and device-control pages are installed on the original coordinator and returned HTTP 200 in a November 11 check; that read-only check did not change filters or device retirement. The first-install and optional controls scripts have not been run on a fresh Debian deployment.
 
 Searchable findings, source-volume charts, acknowledgment/investigation notes, and automatic browser polling are not implemented. The included preview uses synthetic data and demonstrates saved reports, not real device status.
