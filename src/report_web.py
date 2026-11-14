@@ -25,6 +25,7 @@ def load(name):
 publisher = load('publish_report')
 rules = load('suppression_rules')
 devices = load('device_inventory')
+families = load('issue_families')
 job = publisher.load_job()
 html = job.mail.html_report
 
@@ -94,6 +95,11 @@ def rows_for(report, active_rules, retired=None):
     return sorted(visible, key=order), sorted(suppressed, key=order)
 
 
+def display_cards(rows):
+    """Combine presentation only; keep each group's evidence and controls intact."""
+    return [dict(card, rows=card['members']) for card in families.group_rows(rows)]
+
+
 TEMPLATE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ title }} · Nightly AI Logs</title>
 <style>
@@ -121,8 +127,10 @@ TEMPLATE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
     {% if report.review_limited or warnings %}<div class="notice"><strong>Coverage needs attention.</strong> Some data or AI review may be missing. Suppression does not clear collection failures or review limits.
     {% if warnings %}<ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
     {% if view=='suppressed' %}<p>Matching issues remain in local history. This page shows matching groups present in the saved report, including those excluded before AI review. Filters with no match appear on the Filters page.</p>{% endif %}
-    <div class="top"><p class="muted">{{ row_total }} groups · page {{ page }} of {{ pages }}</p><div><a href="{{ list_url }}">Both sites</a> · <a href="{{ list_url }}?site=home">Home</a> · <a href="{{ list_url }}?site=work">Work</a></div></div>
-    {% for row in rows %}{% set group=row.group %}{% set assessment=row.assessment or {} %}
+    <div class="top"><p class="muted">{{ card_total }} issue summaries covering {{ row_total }} groups · page {{ page }} of {{ pages }}</p><div><a href="{{ list_url }}">Both sites</a> · <a href="{{ list_url }}?site=home">Home</a> · <a href="{{ list_url }}?site=work">Work</a></div></div>
+    {% for card in cards %}
+    {% if card.family %}<section class="issue {{ card.severity }}"><div class="top"><span class="badge {{ card.severity }}">{{ card.site|upper }} · {{ card.severity|upper }}</span><span class="muted">{{ card.rows|length }} groups · {{ '{:,}'.format(card.count) }} records</span></div><h3>{{ card.family.title }}</h3><p>{{ card.family.description }}</p><details><summary>Show all {{ card.rows|length }} groups, supporting events and Ignore controls</summary>{% endif %}
+    {% for row in card.rows %}{% set group=row.group %}{% set assessment=row.assessment or {} %}
     <article class="issue {{ assessment.get('severity','info') }}"><div class="top"><div><span class="badge">{{ row.site|upper }}</span> <span class="badge {{ assessment.get('severity','info') }}">{{ assessment.get('severity','not AI reviewed')|upper }}</span>{% if row.rule %} <span class="badge filtered">SUPPRESSED</span>{% endif %}</div><span class="muted">{{ '{:,}'.format(group.count) }} records</span></div>
     <h3>{{ group.source }}{% if group.program %} · {{ group.program }}{% endif %}</h3>
     {% if assessment %}<p>{{ assessment.summary }}</p>{% else %}<p>This recurring group was excluded before AI review. {% if not row.rule %}<strong>It is eligible again for the next report build.</strong>{% endif %}</p>{% endif %}
@@ -131,7 +139,8 @@ TEMPLATE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
     {% if row.rule %}<p class="muted">Reason: {{ row.rule.reason or 'No reason entered' }} · {{ 'Until removed' if row.rule.expires_utc is none else 'Expires '+when(row.rule.expires_utc) }}</p>
     <div class="actions"><a class="button secondary" href="{{ url_for('remove_filter',identity=row.rule.id) }}">Restore / delete filter</a><a href="{{ url_for('filters_page') }}">View filters</a></div>
     {% elif row.can_ignore and not filter_error %}<div class="actions"><a class="button secondary" href="{{ url_for('ignore',site=row.site,identity=group.id) }}">Ignore…</a><span class="muted">Review the exact scope before saving.</span></div>
-    {% else %}<p class="muted">Ignore controls become available after the next report build with this upgrade.</p>{% endif %}</article>
+    {% else %}<p class="muted">Ignore controls become available after the next report build with this upgrade.</p>{% endif %}</article>{% endfor %}
+    {% if card.family %}</details></section>{% endif %}
     {% else %}<section class="panel"><h3>{{ 'No matching suppressed groups' if view=='suppressed' else 'No visible issue groups' }}</h3><p>This describes the saved report and current filters. It does not establish that all devices are healthy.</p></section>{% endfor %}
     <div class="pager">{% if page>1 %}<a href="{{ list_url }}?page={{ page-1 }}&amp;site={{ site }}">← Previous</a>{% else %}<span></span>{% endif %}{% if page<pages %}<a href="{{ list_url }}?page={{ page+1 }}&amp;site={{ site }}">Next →</a>{% endif %}</div>
     {% if view=='report' %}<section class="panel"><h3>Collection coverage</h3><div class="table-wrap"><table><thead><tr><th>Site / source</th><th>Records</th><th>Suppressed at build</th><th>Retired at build</th><th>Last record / notes</th></tr></thead><tbody>{% for item in coverage %}<tr><td>{{ item.site|title }} / {{ item.source }}</td><td>{{ item.data.records }}</td><td>{{ item.data.get('suppressed_records',0) }}</td><td>{{ item.data.get('retired_records',0) }}</td><td>{{ when(item.data.last_record) }}{% for warning in item.data.warnings %}<br>{{ warning }}{% endfor %}{% for note in item.data.get('notices',[]) %}<br><span class="muted">{{ note }}</span>{% endfor %}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
@@ -146,11 +155,24 @@ TEMPLATE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
   {% else %}<section class="panel"><h3>No suppression filters</h3><p>Use Ignore beside an issue in the report to create one.</p></section>{% endfor %}
   <div class="pager">{% if page>1 %}<a href="{{ url_for('filters_page') }}?page={{ page-1 }}">← Previous</a>{% else %}<span></span>{% endif %}{% if page<pages %}<a href="{{ url_for('filters_page') }}?page={{ page+1 }}">Next →</a>{% endif %}</div>
 {% elif view=='devices' %}
-  <p>Devices are identified by site, hostname and IP address. Case-only hostname variants with the same IP share one entry. Quiet devices remain active; silence alone is not a collection failure.</p>
+  <section class="panel" id="automatic-retirement"><h3>Automatic retirement</h3>
+  <form method="post" action="{{ url_for('device_settings') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="revision" value="{{ lifecycle.settings.revision }}">
+  <label><input type="checkbox" name="enabled" value="yes" {% if lifecycle.settings.enabled %}checked{% endif %}> Automatically retire devices that stop sending logs</label>
+  <label for="retirement-days">Days without logs</label><input id="retirement-days" name="days" type="number" min="1" max="3650" step="1" required value="{{ lifecycle.settings.days }}">
+  <p class="muted">Checked after a successful, fresh NAS collection. Historical logs are retained. Automatically retired devices return when newer logs arrive; manual and permanent retirement remain in place. Manually restoring a device starts a new grace period.</p>
+  {% if lifecycle.evaluation and (lifecycle.evaluation.sites_paused or lifecycle.evaluation.devices_paused) %}<p class="notice">Automatic lifecycle checks paused for {{ lifecycle.evaluation.sites_paused|join(', ') or 'no whole sites' }}{% if lifecycle.evaluation.devices_paused %} and {{ lifecycle.evaluation.devices_paused }} devices with uncertain receipt timestamps{% endif %}. Last check {{ when(lifecycle.evaluation.checked_utc) }}. Fresh, complete collection and valid receipt timestamps are required.</p>{% endif %}
+  <button type="submit">Save device settings</button></form></section>
+  <section class="panel" id="recent-device-changes"><h3>Devices added or removed in the last 7 days</h3>
+  {% if lifecycle.changes %}<div class="table-wrap"><table><thead><tr><th>Device</th><th>Change</th><th>When</th></tr></thead><tbody>{% for change in lifecycle.changes %}<tr><td>{{ change.site|title }} · {{ change.name }}</td><td>{{ lifecycle_labels.get(change.action, change.action) }}{% if change.reason %}<br><span class="muted">{{ change.reason }}</span>{% endif %}</td><td>{{ when(change.changed_utc) }}</td></tr>{% endfor %}</tbody></table></div>{% if lifecycle.truncated %}<p class="muted">Showing the 500 most recent changes.</p>{% endif %}{% else %}<p>No device additions, retirements or restorations recorded in the last week.</p>{% endif %}</section>
+  <p>Devices are added when their logs are collected from the NAS. Hostname and IP aliases are combined only when local DNS confirms they belong to the same device within the same site. Original log identities and history remain intact. Silence alone is not a collection failure.</p>
+  {% if dns_status %}<p class="muted">Local DNS checked {{ when(dns_status.checked_utc) }}{% if dns_status.resolvers %} through {{ dns_status.resolvers|join(', ') }}{% endif %}. Previously verified aliases remain linked during a DNS outage; a conflicting DNS answer separates the affected alias.</p>{% for error in dns_status.errors or [] %}<p class="notice">{{ error }}</p>{% endfor %}{% endif %}
   <div class="panel"><div class="top"><div><a href="{{ url_for('devices_page',state='active',site=site) }}">Active ({{ counts.active }})</a> · <a href="{{ url_for('devices_page',state='retired',site=site) }}">Retired ({{ counts.retired }})</a> · <a href="{{ url_for('devices_page',state='permanent',site=site) }}">Permanently retired ({{ counts.permanent }})</a></div><div><a href="{{ url_for('devices_page',state=state) }}">Both sites</a> · <a href="{{ url_for('devices_page',state=state,site='home') }}">Home</a> · <a href="{{ url_for('devices_page',state=state,site='work') }}">Work</a></div></div>
   <p class="muted">Inventory refreshed {{ when(refreshed_utc) }} from retained local history. {{ row_total }} {{ state_label|lower }} devices · page {{ page }} of {{ pages }}</p></div>
   {% for device in device_rows %}<section class="panel"><div class="top"><div><span class="badge">{{ device.scope.site|upper }}</span> <span class="badge {{ 'filtered' if device.state!='active' else '' }}">{{ state_label|upper }}</span></div><span class="muted">{{ device.observation }}</span></div>
-  <h3>{{ device.name }}</h3><p>{{ device.scope.ip or 'NAS-local log streams' if device.scope.kind=='nas-local' else device.scope.ip or 'No IP recorded' }}</p>
+  <h3>{{ device.name }}</h3><p>{{ device.ips|join(', ') or ('NAS-local log streams' if device.scope.kind=='nas-local' else 'No IP recorded') }}</p>
+  {% if device.member_count>1 %}<p>{{ device.member_count }} log identities combined using verified local DNS. All device actions apply to these aliases.</p><p class="muted">Names: {{ device.original_names|join(' · ') }} · Last DNS verification {{ when(device.dns_verified_utc) }}</p>{% endif %}
+  {% if device.partial_retirement %}<p class="notice">An older alias was automatically retired before these names were combined. Active aliases remain eligible for review; the next successful collection will reconcile their activity together.</p>{% endif %}
+  {% if device.dns_conflict %}<p class="notice">Local DNS now contradicts this alias's previous identity. It remains separate and automatic retirement/restoration is paused until DNS confirms its current identity. Existing retirement choices are preserved.</p>{% endif %}
   <p class="muted">First message {{ when(device.first_seen) }} · Last message {{ when(device.last_seen) }}<br>{{ '{:,}'.format(device.retained_records) }} records in retained history · Latest site collection: {{ device.collection_status }}</p>
   {% if device.reason %}<p>Reason: {{ device.reason }}</p>{% endif %}
   {% if device.collection_warnings %}<div class="notice">{% for warning in device.collection_warnings %}<p>{{ warning }}</p>{% endfor %}</div>{% endif %}
@@ -159,10 +181,11 @@ TEMPLATE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
   {% else %}<section class="panel"><h3>No {{ state_label|lower }} devices</h3><p>The inventory refreshes when logs are collected. Retirement does not delete historical logs.</p></section>{% endfor %}
   <div class="pager">{% if page>1 %}<a href="{{ url_for('devices_page',state=state,site=site,page=page-1) }}">← Previous</a>{% else %}<span></span>{% endif %}{% if page<pages %}<a href="{{ url_for('devices_page',state=state,site=site,page=page+1) }}">Next →</a>{% endif %}</div>
 {% elif view=='device_action' %}
-  <section class="panel"><h3>{{ title }}: {{ device.name }}</h3><dl><dt>Site</dt><dd>{{ device.scope.site|title }}</dd><dt>Hostname / IP</dt><dd>{{ device.scope.host }} / {{ device.scope.ip or 'NAS-local streams' }}</dd><dt>Source aliases</dt><dd>{% for alias in device.aliases %}{{ alias.source }}{% if not loop.last %}, {% endif %}{% endfor %}</dd></dl>
+  <section class="panel"><h3>{{ title }}: {{ device.name }}</h3><dl><dt>Site</dt><dd>{{ device.scope.site|title }}</dd><dt>Hostname / IP</dt><dd>{{ device.original_names|join(', ') }} / {{ device.ips|join(', ') or 'NAS-local streams' }}</dd><dt>Source aliases</dt><dd>{% for alias in device.aliases %}{{ alias.source }}{% if not loop.last %}, {% endif %}{% endfor %}</dd></dl>
+  {% if device.member_count>1 %}<p>This action applies to all {{ device.member_count }} DNS-verified log identities shown above.</p>{% endif %}
   {% if action=='retire' %}<p>Exclude this device's records from future AI review and reports. You can restore it later, or retire it permanently from the Retired tab. This affects the log sender, not just one issue.</p>
   {% elif action=='restore' %}<p>Make this device's records eligible for the next report build. Any separate issue filters still apply.</p>
-  {% else %}<div class="notice"><strong>This cannot be undone through the web interface.</strong> Keep this device excluded permanently, even if the same identity sends more logs. A different hostname or IP will be treated as a new device.</div>{% endif %}
+  {% else %}<div class="notice"><strong>This cannot be undone through the web interface.</strong> Keep this device and its verified aliases excluded permanently, even if they send more logs. An unverified hostname or IP remains a separate device.</div>{% endif %}
   <p>Historical logs remain under the existing retention policy. NAS configuration and already built reports are unchanged.</p>
   <form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="revision" value="{{ device.revision }}">
   <label for="reason">Reason (optional)</label><textarea id="reason" name="reason" maxlength="240">{{ device.reason }}</textarea>
@@ -294,14 +317,15 @@ def create_app(base='/var/lib/ai-monitor', secret_path='/etc/ai-monitor-web/sess
             if site not in ('all', 'home', 'work'):
                 abort(400, description='Invalid site')
             rows = [row for row in rows if site == 'all' or row['site'] == site]
-            selected, number, pages = pagination(rows)
+            cards = display_cards(rows)
+            selected, number, pages = pagination(cards)
             sites = report.get('sites', {})
             warnings = list(report.get('pipeline_warnings', []))
             coverage = []
             for name, data in sites.items():
                 warnings.extend(name.title()+': '+str(item) for field in ('warnings', 'ai_errors', 'review_limit_notes') for item in data.get(field, []))
                 coverage.extend(dict(site=name, source=source, data=info) for source, info in data.get('sources', {}).items())
-            context.update(rows=selected, page=number, pages=pages, site=site, row_total=len(rows),
+            context.update(cards=selected, card_total=len(cards), page=number, pages=pages, site=site, row_total=len(rows),
                 suppressed_count=len(hidden), coverage=coverage, warnings=warnings,
                 total_records=sum(html.n(data.get('rows_in_window')) for data in sites.values()),
                 total_assessed=sum(len(html.index_site(data)[1]) for data in sites.values()),
@@ -332,16 +356,34 @@ def create_app(base='/var/lib/ai-monitor', secret_path='/etc/ai-monitor-web/sess
         labels = {'active':'Active', 'retired':'Retired', 'permanent':'Permanently retired'}
         messages = {'retire':'Device retired. Its records are excluded from the next build; you can restore it here.',
                     'restore':'Device restored. Its records are eligible for the next build.',
+                    'settings':'Device settings saved. They apply after the next successful collection.',
                     'permanent':'Device permanently retired. Historical logs remain retained.'}
         return page('Devices', 'devices', device_rows=selected, counts=counts, state=state,
                     site=site, state_label=labels[state], page=number, pages=pages, row_total=len(rows),
-                    refreshed_utc=view['refreshed_utc'], message=messages.get(request.args.get('changed')))
+                    refreshed_utc=view['refreshed_utc'], message=messages.get(request.args.get('changed')),
+                    dns_status=view.get('dns_status'),
+                    lifecycle=devices.lifecycle_summary(base, clock()),
+                    lifecycle_labels={'added':'Added automatically', 'retire':'Retired manually',
+                        'auto_retire':'Retired automatically', 'restore':'Restored manually',
+                        'auto_restore':'Restored after new logs', 'permanent':'Permanently retired'})
+
+    @app.post('/devices/settings')
+    def device_settings():
+        days = request.form.get('days', '')
+        enabled = request.form.get('enabled')
+        if not re.fullmatch(r'[1-9][0-9]{0,3}', days) or int(days) > devices.MAX_RETIRE_DAYS or enabled not in (None, 'yes'):
+            abort(400, description='Days must be a whole number from 1 to 3650.')
+        try:
+            devices.set_settings(base, enabled == 'yes', int(days), request.form.get('revision', ''))
+        except ValueError as error:
+            abort(409, description=str(error))
+        return redirect(url_for('devices_page', changed='settings'), code=303)
 
     @app.route('/devices/<identity>/<action>', methods=['GET','POST'])
     def device_action(identity, action):
         if action not in ('retire','restore','permanent') or not re.fullmatch('[a-f0-9]{64}', identity):
             abort(404)
-        device = next((item for item in devices.catalog(base, clock())['devices'] if item['id']==identity), None)
+        device = next((item for item in devices.catalog(base, clock())['devices'] if identity in item['members']), None)
         if device is None: abort(404)
         if device['state'] != ('active' if action=='retire' else 'retired'):
             abort(409, description='That action is not available for this device.')

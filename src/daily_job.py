@@ -29,9 +29,10 @@ PRODUCER = 'ai-monitor-daily-job-v1'
 MODEL = SETTINGS['model']
 OLLAMA = SETTINGS['ollama_url']
 RETENTION_DAYS = 30
-GROUP_CAP_PER_SITE = 4000
+GROUP_CAP_PER_SITE = 7500
 BUILD_LIMIT_SECONDS = 2700
 FINALIZE_RESERVE_SECONDS = 60
+SUMMARY_RESERVE_SECONDS = 90
 
 
 def module(name):
@@ -44,6 +45,7 @@ def module(name):
 daily = module('daily_report')
 mail = module('gmail_report')
 dashboard_progress = module('dashboard_progress')
+summary = module('report_summary')
 
 
 def iso(stamp):
@@ -201,7 +203,7 @@ def verify_ready(folder, day, now):
 
 
 def build(base, force=False, now=None, collector=run_collection, checker=preflight,
-          analyzer=None, maintenance=maintain):
+          analyzer=None, maintenance=maintain, summarizer=None):
     build_began = time.monotonic()
     began = int(time.time() if now is None else now)
     if not due(began, 4):
@@ -271,7 +273,7 @@ def build(base, force=False, now=None, collector=run_collection, checker=preflig
                     data['analysis_seconds'] = 0
                     data['ai_errors'].append('Ollama unavailable: ' + daily.core.clean(error, 350))
             else:
-                remaining = max(0, BUILD_LIMIT_SECONDS - FINALIZE_RESERVE_SECONDS - (time.monotonic() - build_began))
+                remaining = max(0, BUILD_LIMIT_SECONDS - FINALIZE_RESERVE_SECONDS - SUMMARY_RESERVE_SECONDS - (time.monotonic() - build_began))
                 progress.stage('analyzing')
                 (analyzer or daily.analyze)(report, OLLAMA, MODEL, 180, max_runtime=remaining,
                                            progress=progress.counts)
@@ -282,6 +284,28 @@ def build(base, force=False, now=None, collector=run_collection, checker=preflig
             partial = report['review_limited'] or bool(warnings) or any(data['ai_errors']
                                            for data in report['sites'].values())
             report['status'] = 'daily_partial' if partial else 'daily_complete'
+            # Selection/runtime limits are coverage limitations, not a failed pipeline.
+            report['pipeline_issue'] = bool(warnings) or set(report['sites']) != {'home', 'work'} or any(
+                data.get('ai_errors') or data.get('warnings') or data.get('rows_not_grouped') or
+                any(source.get('warnings') for source in data.get('sources', {}).values())
+                for data in report['sites'].values())
+            try:
+                if daily.devices.database_path(base).exists():
+                    report['device_lifecycle'] = daily.devices.lifecycle_summary(base, current)
+            except Exception as error:
+                report['device_lifecycle'] = {'error': daily.core.clean(error, 300)}
+            summary_time = max(0, min(SUMMARY_RESERVE_SECONDS,
+                BUILD_LIMIT_SECONDS - FINALIZE_RESERVE_SECONDS - (time.monotonic() - build_began)))
+            progress.stage('summarizing')
+            try:
+                report['executive_summary'] = (summarizer or summary.build_summary)(
+                    report, base, OLLAMA, MODEL,
+                    timeout=0 if report.get('analysis_stop_reason') == 'ollama_unavailable' else summary_time)
+            except Exception as error:
+                report['executive_summary'] = {'status': 'fallback', 'items': [],
+                    'failure_type': type(error).__name__,
+                    'notice': 'AI summary unavailable. Review the saved findings and coverage details below.'}
+            progress.stage('saving')
             report = daily.core.privacy.record(report)
             report['sanitization'] = daily.core.privacy.VERSION
             save(folder / 'report.json', report)
@@ -289,6 +313,7 @@ def build(base, force=False, now=None, collector=run_collection, checker=preflig
             mail.html_report.save(folder / 'report.html', mail.html_report.render(report))
             state.update(phase='ready', completed_utc=iso(time.time() if now is None else now),
                          report_status=report['status'], review_limited=report['review_limited'],
+                         pipeline_issue=report['pipeline_issue'],
                          analysis_stop_reason=report.get('analysis_stop_reason', 'selected_groups_complete'),
                          review=daily.review_summary(report),
                          sha256={name: digest(folder / name) for name in ('report.txt', 'report.json', 'report.html')})

@@ -23,6 +23,9 @@ SETTINGS = _settings_module['load']()
 _spec = importlib.util.spec_from_file_location('html_privacy', Path(__file__).with_name('sanitize_logs.py'))
 privacy = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(privacy)
+_summary_spec = importlib.util.spec_from_file_location('html_summary', Path(__file__).with_name('report_summary.py'))
+summary = importlib.util.module_from_spec(_summary_spec)
+_summary_spec.loader.exec_module(summary)
 ZONE = ZoneInfo(SETTINGS['timezone'])
 COLORS = {'critical': ('#9f1239', '#fff1f2'), 'warning': ('#92400e', '#fffbeb'),
           'info': ('#075985', '#f0f9ff')}
@@ -73,13 +76,14 @@ def notice(title, text):
     return f'<div style="background:#fffbeb;border-left:4px solid #d97706;padding:14px 16px;margin:18px 0;color:#78350f;font-size:13px;line-height:1.6;"><strong>{e(title,160)}</strong><br>{e(text,1800)}</div>'
 
 
-def finding(item, group):
+def finding(item, group, site=None):
     color, bg = COLORS[item['severity']]
     classification = 'Needs verification' if item['classification']=='uncertain' else 'AI-flagged issue'
     source = e(group.get('source') or group.get('host') or 'Unknown source',100)
     example = e(group.get('example_message') or group.get('message') or '',260)
     check = item.get('suggested_check')
-    return f'''<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:12px 0;border:1px solid #dce4ec;border-radius:8px;border-collapse:separate;"><tr><td style="padding:18px;border-left:4px solid {color};">
+    anchor = summary.event_anchor(site, item['id']) if site else None
+    return f'''<table {('id="'+anchor+'"') if anchor else ''} role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:12px 0;border:1px solid #dce4ec;border-radius:8px;border-collapse:separate;"><tr><td style="padding:18px;border-left:4px solid {color};">
 <div>{pill(item['severity'].upper(),color,bg)} <span style="font-size:12px;color:#64748b;">{e(classification)}</span></div>
 <div style="font-size:14px;font-weight:700;margin-top:12px;color:#0f172a;">{source}</div>
 <div style="font-size:15px;line-height:1.6;color:#1e293b;margin:6px 0;">{e(item.get('summary'),400)}</div>
@@ -90,12 +94,90 @@ def finding(item, group):
 </td></tr></table>'''
 
 
+def briefing(report, indexed):
+    """Render only validated current evidence and catalog-owned external links."""
+    value = report.get('executive_summary')
+    if not isinstance(value, dict):
+        return '', set()
+    parts = ['<section style="padding:18px 20px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;margin:0 0 24px;"><h2 style="margin:0 0 12px;font-size:21px;color:#134e4a;">Opening briefing</h2>']
+    if value.get('notice'):
+        parts.append('<p style="font-size:13px;line-height:1.6;">'+e(value['notice'],400)+'</p>')
+    referenced = set()
+    for item in value.get('items', [])[:summary.MAX_ITEMS]:
+        if not isinstance(item, dict):
+            continue
+        evidence = []
+        for record in item.get('evidence', [])[:4]:
+            if not isinstance(record, dict):
+                continue
+            site, identity = record.get('site'), record.get('id')
+            if site not in indexed or identity not in indexed[site][0]:
+                continue
+            group = indexed[site][0][identity]
+            referenced.add((site, identity))
+            url = summary.evidence_url(report, site, identity)
+            label = site.title()+' / '+str(group.get('source') or group.get('host') or 'Unknown source')
+            link = '<a href="'+escape(url,quote=True)+'">'+e(label,130)+'</a>: '+f'{n(group.get("count")):,} records'
+            if record.get('previous_count') is not None:
+                link += '; prior comparable day '+f'{n(record["previous_count"]):,}'
+            evidence.append(link)
+        if not evidence:
+            continue
+        urgent = bool(item.get('urgent'))
+        label = 'URGENT REVIEW' if urgent else summary.TREND_LABELS.get(item.get('trend'),'Finding')
+        color, bg = COLORS['critical' if urgent else 'info']
+        parts.append('<div style="padding:12px 0;border-top:1px solid #ccfbf1;">'+pill(label,color,bg)+
+            '<p style="font-size:14px;line-height:1.6;margin:9px 0;">'+e(item.get('text'),600)+'</p>'+
+            '<div style="font-size:12px;line-height:1.8;">'+'<br>'.join(evidence)+'</div>')
+        refs = []
+        for reference in item.get('references', [])[:3]:
+            checked = summary.REFERENCES.get(reference.get('key')) if isinstance(reference, dict) else None
+            if checked:
+                refs.append('<a href="'+escape(checked['url'],quote=True)+'">'+e(checked['title'],130)+'</a> — '+e(checked['guidance'],240))
+        if refs:
+            parts.append('<div style="font-size:11px;line-height:1.7;margin-top:8px;color:#475569;"><strong>Official troubleshooting guidance; not a verified fix</strong><br>'+'<br>'.join(refs)+'</div>')
+        parts.append('</div>')
+    if value.get('critical_groups'):
+        parts.append('<p style="font-size:12px;color:#9f1239;">'+str(n(value['critical_groups']))+' critical groups require review. Severity is advisory, not confirmation of an incident.</p>')
+    if value.get('unreviewed_groups'):
+        parts.append('<p style="font-size:12px;color:#92400e;">'+f'{n(value["unreviewed_groups"]):,}'+' groups were not AI reviewed and may contain issues.</p>')
+    parts.append('<p style="font-size:11px;line-height:1.6;color:#475569;margin:12px 0 0;">'+e(value.get('comparison_note'),500)+'</p></section>')
+    return ''.join(parts), referenced
+
+
+def lifecycle_section(report):
+    value = report.get('device_lifecycle')
+    if not isinstance(value, dict):
+        return ''
+    if value.get('error'):
+        return notice('Device changes unavailable', value['error'])
+    counts = value.get('counts', {})
+    settings = value.get('settings', {})
+    totals = ' · '.join(f'{n(counts.get(key)):,} {key}' for key in ('added','retired','restored','permanent'))
+    rows = []
+    for item in value.get('changes', [])[:20]:
+        if not isinstance(item, dict):
+            continue
+        action = summary.LIFECYCLE_LABELS.get(item.get('action'),'Changed')
+        rows.append('<tr><td style="padding:8px 5px;border-bottom:1px solid #e2e8f0;">'+e(action,40)+
+            '</td><td style="padding:8px 5px;border-bottom:1px solid #e2e8f0;overflow-wrap:anywhere;">'+
+            e(str(item.get('site','')).title()+' / '+str(item.get('name','')),130)+
+            '<div style="font-size:10px;color:#64748b;">'+e(item.get('reason'),180)+'</div></td>'+
+            '<td style="padding:8px 5px;border-bottom:1px solid #e2e8f0;">'+e(when(item.get('changed_utc')),50)+'</td></tr>')
+    table = '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:11px;border-collapse:collapse;">'+''.join(rows)+'</table>' if rows else '<p style="font-size:12px;color:#475569;">No device additions or retirements were recorded in this period.</p>'
+    more = '<p style="font-size:11px;color:#64748b;">More changes are available in the dashboard.</p>' if len(value.get('changes', []))>20 or value.get('truncated') else ''
+    enabled = 'Enabled' if settings.get('enabled') else 'Disabled'
+    return '<section style="margin:0 0 24px;padding:16px;border:1px solid #e2e8f0;border-radius:8px;"><h2 style="margin:0 0 8px;font-size:17px;">Device changes · last '+str(n(value.get('window_days',7)))+' days</h2><p style="font-size:13px;margin:8px 0;">'+e(totals)+'</p>'+table+more+'<p style="font-size:11px;line-height:1.6;color:#64748b;margin-bottom:0;">Auto-retirement: '+enabled+' · '+str(n(settings.get('days',10)))+' days without received logs. Retirement removes active monitoring; historical logs remain retained. <a href="'+escape(summary.SETTINGS['viewer_origin']+'/controls/devices',quote=True)+'">Manage devices and settings</a></p></section>'
+
+
 def render(report, fallback_text='', dashboard_url=None, demo=False, compact=False):
     report = privacy.record(report)
     sites = report.get('sites', {})
     if not isinstance(sites, dict):
         sites = {}
     indexed = {site:index_site(sites.get(site, {})) for site in ('home','work')}
+    opening, referenced = briefing(report, indexed)
+    lifecycle = lifecycle_section(report)
     total_records = sum(n(sites.get(site,{}).get('rows_in_window')) for site in indexed)
     total_groups = sum(n(sites.get(site,{}).get('groups_total')) for site in indexed)
     retired_records = sum(n(sites.get(site,{}).get('retired_records')) for site in indexed)
@@ -111,7 +193,7 @@ def render(report, fallback_text='', dashboard_url=None, demo=False, compact=Fal
     all_filtered = not total_groups and bool(suppressed_groups or retired_records)
     limited = bool(report.get('review_limited')) or reviewed < total_groups or (not total_groups and not all_filtered) or any(n(s.get('rows_not_grouped')) for s in sites.values())
     failed = report.get('status') == 'daily_failed'
-    pipeline_problem = failed or bool(warnings) or bool(source_gaps) or set(sites) != {'home','work'} or report.get('status') in ('daily_partial','preview_with_ai_errors')
+    pipeline_problem = failed or bool(report['pipeline_issue']) if 'pipeline_issue' in report else failed or bool(warnings) or bool(source_gaps) or set(sites) != {'home','work'} or report.get('status') in ('daily_partial','preview_with_ai_errors')
     status = 'Report unavailable' if failed else 'Coverage needs attention' if pipeline_problem else 'All records excluded by your settings' if all_filtered else 'Limited AI review' if limited else 'Review completed'
     headline = 'The nightly report could not be completed.' if failed else 'No AI review available' if not reviewed else f'{findings:,} finding'+('s' if findings!=1 else '')+' to investigate' if findings else 'No issues identified in the reviewed groups'
     if not failed and not total_groups and suppressed_groups:
@@ -136,11 +218,22 @@ def render(report, fallback_text='', dashboard_url=None, demo=False, compact=Fal
         flagged = max(0,n(data.get('flagged_groups_total'))-sum(n(groups[k].get('priority_hint',3))<3 for k in assessments))
         sources = data.get('sources', {})
         cap = 3 if compact else 8
-        cards = ''.join(finding(item,groups[item['id']]) for item in items[:cap])
+        shown = {item['id'] for item in items[:cap]}
+        cards = ''.join(finding(item,groups[item['id']],site) for item in items[:cap])
         if not cards:
             cards = '<p style="font-size:14px;color:#475569;line-height:1.7;">'+('No validated AI assessments are available. Device health is unknown.' if not assessments else 'No issue or uncertain finding in the reviewed groups. This does not establish that every device is healthy.')+'</p>'
         if len(items)>cap:
             cards += f'<p style="color:#64748b;font-size:12px;">{len(items)-cap:,} further findings are available in the local full report.</p>'
+        extra = []
+        for ref_site, identity in sorted(referenced):
+            if ref_site != site or identity in shown:
+                continue
+            group = groups[identity]
+            assessment = assessments.get(identity) or {'id':identity,'severity':'critical' if group.get('priority_hint')==0 else 'info',
+                'classification':'uncertain','summary':'Source-reported event; no validated AI assessment available.'}
+            extra.append(finding(assessment,group,site))
+        if extra:
+            cards += '<h3 style="font-size:14px;margin:20px 0 8px;">Supporting events from the opening briefing</h3>'+''.join(extra)
         source_rows=[]
         source_cap=12 if compact else 32
         for source,check in sorted(sources.items())[:source_cap]:
@@ -172,7 +265,7 @@ def render(report, fallback_text='', dashboard_url=None, demo=False, compact=Fal
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{e(status)} · {e(headline)} · {reviewed:,}/{total_groups:,} groups reviewed.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 10px;"><table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:100%;max-width:720px;border-collapse:separate;background:#fff;border:1px solid #dce4ec;border-radius:12px;overflow:hidden;"><tr><td class="pad" style="background:#11283f;padding:30px 34px;color:#fff;border-top:5px solid #2dd4bf;">
 <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#7dd3cf;">NIGHTLY OPERATIONS</div><h1 style="font-size:29px;margin:12px 0 8px;letter-spacing:-.7px;">Home + Work</h1><div style="font-size:14px;color:#cbd5e1;">Your daily log briefing · {e(date,80)}</div></td></tr>
-<tr><td class="pad" style="padding:28px 34px;">{banner}{pill(status,'#92400e','#fffbeb') if pipeline_problem or limited or suppressed_groups else pill(status,'#0f766e','#ecfdf5')}
+<tr><td class="pad" style="padding:28px 34px;">{banner}{opening}{lifecycle}{pill(status,'#92400e','#fffbeb') if pipeline_problem or limited or suppressed_groups else pill(status,'#0f766e','#ecfdf5')}
 <h2 class="headline" style="font-size:28px;line-height:1.25;letter-spacing:-.6px;color:#0f172a;margin:15px 0 12px;">{e(headline)}</h2><p style="font-size:12px;line-height:1.7;color:#64748b;margin:0 0 20px;">Window: {e(window)}<br>End exclusive · America/New_York</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="table-layout:fixed;"><tr>{metrics}</tr></table>{suppression_note}{limits}{''.join(sections)}{notes}{action}
 <div style="margin-top:28px;padding-top:18px;border-top:1px solid #e2e8f0;font-size:11px;line-height:1.7;color:#64748b;">Generated {e(when(report.get('generated_utc')))} · Local model: {e(report.get('model','not run'),70)}<br>Credential patterns are redacted locally. Device names and network addresses remain for troubleshooting. Redaction is not guaranteed anonymization.<br>AI findings are advisory. Counts describe log records, not unique incidents. Missing logs do not establish device health.</div></td></tr></table><p style="font-size:10px;color:#64748b;">AI Monitor · Home + Work · Private infrastructure</p></td></tr></table></body></html>'''

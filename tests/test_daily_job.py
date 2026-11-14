@@ -15,6 +15,11 @@ ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('job', ROOT / 'src/daily_job.py')
 job = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(job)
+# Exercise deterministic briefing integration without ever contacting Ollama.
+_real_summary = job.summary.build_summary
+def _mock_summary(report, base, url, model, timeout=0):
+    return _real_summary(report, base, url, model, timeout=0)
+job.summary.build_summary = _mock_summary
 NOW = int(datetime(2026, 10, 30, 4, 0, tzinfo=job.ZONE).timestamp())
 SEND = NOW + 3600
 DAY = job.report_day(NOW)
@@ -115,11 +120,63 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'work') as tmp, \
     assert job.send(base, config, now=SEND, sender=sender)['status'] == 'already_sent'
     assert len(SMTP.sent) == before
 
+    # Refresh a saved briefing without rerunning collection/review or changing its generation identity.
+    refresh_spec=importlib.util.spec_from_file_location('refresh_test',ROOT/'src/refresh_briefing.py')
+    refresher=importlib.util.module_from_spec(refresh_spec); refresh_spec.loader.exec_module(refresher)
+    refresher.job=job  # Reuse the mock-only NAS/Ollama/SMTP harness.
+    refresh_base=root/'refresh-success'
+    setup(refresh_base); build(refresh_base)
+    job.daily.devices.initialize(job.daily.devices.database_path(refresh_base))
+    refresh_folder=refresh_base/'daily'/DAY.isoformat()
+    names=('report.json','report.txt','report.html','state.json')
+    original={name:(refresh_folder/name).read_bytes() for name in names}
+    previous=json.loads(original['report.json'])
+    def fresh_briefing(report,base,url,model,timeout=0):
+        result=_real_summary(report,base,url,model,timeout=0)
+        result['status']='ai'
+        result['items'][0]['text']='Refreshed briefing from the same saved evidence.'
+        return result
+    with patch.object(refresher.time,'time',return_value=SEND), \
+            patch.object(job.summary,'build_summary',side_effect=fresh_briefing), \
+            patch.object(job,'run_collection',side_effect=AssertionError('Unexpected recollection')), \
+            patch.object(job.daily,'analyze',side_effect=AssertionError('Unexpected repeated analysis')), \
+            patch.dict(job.mail.html_report.SETTINGS,{'timezone':'America/New_York','controls_enabled':True},clear=True):
+        refreshed=refresher.refresh(refresh_base,timeout=0)
+    assert refreshed['summary_status']=='ai' and refreshed['email_sent'] is False
+    updated_state,updated=job.verify_ready(refresh_folder,DAY,SEND)
+    assert updated['sites']==previous['sites']
+    assert all(updated[key]==previous[key] for key in ('generated_utc','window_start','window_end_exclusive','report_date'))
+    assert updated['executive_summary']['items'][0]['text'].startswith('Refreshed briefing')
+    assert updated_state['sha256']=={name:job.digest(refresh_folder/name) for name in names if name!='state.json'}
+    assert updated_state['sha256']['report.json']!=json.loads(original['state.json'])['sha256']['report.json']
+    assert (refresh_folder/'report.txt').read_text(encoding='utf-8').splitlines()[1]=='Generated: '+previous['generated_utc']
+    assert all((Path(refreshed['backup'])/name).read_bytes()==original[name] for name in names)
+    assert len(SMTP.sent)==before
+
+    # An output failure after JSON/text writes restores all four original artifacts byte-for-byte.
+    rollback_base=root/'refresh-rollback'
+    setup(rollback_base); build(rollback_base)
+    job.daily.devices.initialize(job.daily.devices.database_path(rollback_base))
+    rollback_folder=rollback_base/'daily'/DAY.isoformat()
+    rollback_original={name:(rollback_folder/name).read_bytes() for name in names}
+    with patch.object(refresher.time,'time',return_value=SEND), \
+            patch.object(job.summary,'build_summary',side_effect=fresh_briefing), \
+            patch.object(job.mail.html_report,'save',side_effect=OSError('Simulated HTML write failure')):
+        try:
+            refresher.refresh(rollback_base,timeout=0)
+            raise AssertionError('Refresh output failure was swallowed')
+        except OSError as error:
+            assert 'Simulated HTML' in str(error)
+    assert all((rollback_folder/name).read_bytes()==rollback_original[name] for name in names)
+    job.verify_ready(rollback_folder,DAY,SEND)
+    assert len(SMTP.sent)==before
+
     # Time spent collecting/preparing is deducted from the common build budget.
     budgeted = root / 'budgeted'
     setup(budgeted)
     ticks = [0]
     remaining_seen = []
+    summary_seen = []
 
     def slow_collection(base, folder):
         result = collect(base, folder)
@@ -133,10 +190,16 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'work') as tmp, \
         remaining_seen.append(kwargs['max_runtime'])
         analyze(report, *args, **kwargs)
 
+    def budget_summary(report, base, url, model, timeout):
+        summary_seen.append(timeout)
+        return _mock_summary(report,base,url,model)
+
     with patch.object(job.time, 'monotonic', side_effect=lambda: ticks[0]):
         budget_state = job.build(budgeted, now=NOW, collector=slow_collection, checker=slow_preflight,
-                                analyzer=budget_analyzer, maintenance=lambda *args: None)
-    assert budget_state['phase'] == 'ready' and remaining_seen == [2460]
+                                analyzer=budget_analyzer, maintenance=lambda *args: None,
+                                summarizer=budget_summary)
+    assert budget_state['phase'] == 'ready' and remaining_seen == [2370]
+    assert summary_seen == [90]
     # A time-limited review is partial even when collection and AI calls succeeded.
     limited = root / 'limited'
     setup(limited)
@@ -151,6 +214,20 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'work') as tmp, \
     limited_report = job.read(limited / 'daily' / DAY.isoformat() / 'report.json')
     assert not limited_report['pipeline_warnings']
     assert all(not data['ai_errors'] for data in limited_report['sites'].values())
+    assert limited_report['pipeline_issue'] is False
+    limited_send=job.send(limited,limited/'gmail.json',now=SEND,sender=sender)
+    assert 'LIMITED REVIEW' in limited_send['subject'] and 'PIPELINE ISSUE' not in limited_send['subject']
+    # A briefing failure must never discard successful collection/review results.
+    broken_summary=root/'broken-summary'
+    setup(broken_summary)
+    def raise_summary(*args,**kwargs):
+        raise RuntimeError('Example summary failure')
+    summary_state=job.build(broken_summary,now=NOW,collector=collect,checker=lambda:None,
+                            analyzer=analyze,summarizer=raise_summary)
+    assert summary_state['phase']=='ready'
+    saved=job.read(broken_summary/'daily'/DAY.isoformat()/'report.json')
+    assert saved['executive_summary']['status']=='fallback'
+    before=len(SMTP.sent)
     # A regenerated report on the same date is still not automatically resent.
     build(base, force=True)
     assert job.send(base, config, now=SEND+100, sender=sender)['status'] == 'already_sent'

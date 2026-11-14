@@ -41,7 +41,7 @@ spec = importlib.util.spec_from_file_location('device_inventory', Path(__file__)
 devices = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(devices)
 VERSION = 'disk-balanced-v9-devices'
-DEFAULT_GROUP_BUDGET = 4000
+DEFAULT_GROUP_BUDGET = 7500
 DEFAULT_ANALYSIS_SECONDS = 2700
 KERNEL_UPTIME = re.compile(r'^\[\s*\d{1,12}\.\d{1,9}\]\s+')
 HA_DNS_CHECK = re.compile(r'INFO \(MainThread\) \[supervisor\.resolution\.checks\.base\] Run check for (?:dns_server_failed|dns_server_ipv6_error)/dns_server\s*')
@@ -554,6 +554,26 @@ def render(report, zone):
              core.display_time(report['window_end_exclusive'], zone) + ' (end exclusive)',
              'Model: ' + report.get('model', 'not run'), report['scope'], report['time_basis'],
              report['coverage_note'], 'AI results are advisory; unreviewed groups can contain issues.', '']
+    if report.get('executive_summary'):
+        summary_spec = importlib.util.spec_from_file_location('text_summary', Path(__file__).with_name('report_summary.py'))
+        summary_module = importlib.util.module_from_spec(summary_spec)
+        summary_spec.loader.exec_module(summary_module)
+        lines.insert(2, summary_module.render_text(report['executive_summary']))
+    lifecycle = report.get('device_lifecycle', {})
+    if lifecycle:
+        lifecycle_lines = ['DEVICE CHANGES - LAST 7 DAYS']
+        if lifecycle.get('error'):
+            lifecycle_lines.append('Device changes unavailable: ' + core.clean(lifecycle['error'], 300))
+        else:
+            settings = lifecycle.get('settings', {})
+            lifecycle_lines.append('Automatic retirement: ' + ('on' if settings.get('enabled') else 'off') +
+                                   '; inactivity threshold: ' + str(settings.get('days', 10)) + ' days.')
+            for change in lifecycle.get('changes', []):
+                lifecycle_lines.append(core.clean(change.get('site', ''), 20) + ' / ' +
+                    core.clean(change.get('name', ''), 200) + ': ' + core.clean(change.get('action', ''), 40) +
+                    ' at ' + core.display_time(change.get('changed_utc'), zone))
+            if not lifecycle.get('changes'): lifecycle_lines.append('No device additions, retirements or restorations in the last week.')
+        lines.insert(3, '\n'.join(lifecycle_lines) + '\n')
     lines += ['PIPELINE: ' + core.clean(warning, 600) for warning in report.get('pipeline_warnings', [])]
     if 'analysis_stop_reason' in report:
         lines += ['AI review stopped: ' + report['analysis_stop_reason'] +

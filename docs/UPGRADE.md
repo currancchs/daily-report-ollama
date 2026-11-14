@@ -4,6 +4,18 @@ This package is a portable source release, not an automatic patch for an existin
 
 For my working installation, publishing this source repository does not require reinstalling anything. Keep existing NAS tasks, schedules, Gmail configuration, pairing keys, and viewer access rules.
 
+## November 14 briefing and device lifecycle update
+
+The current release adds an opening local-AI briefing, linked evidence, reviewed troubleshooting references, expandable issue families, local DNS alias verification and automatic device lifecycle tracking. The per-site review cap is 7,500; the overall build allowance remains 45 minutes. A review limit alone is labeled `LIMITED REVIEW`, while collection, grouping and model failures retain `PIPELINE ISSUE`. Existing saved report coverage is not expanded by upgrading the source.
+
+Deploy the complete matching module set, including the new `report_summary.py`, `issue_families.py`, `device_dns.py` and `refresh_briefing.py`, with the existing `settings.py`. Preserve the installed model, server, viewer origin and timezone through the environment configuration. Back up source and the device database with SQLite's backup interface while build, delivery, publication and web mutations are stopped. Apply the full-source migration below rather than mixing modules from different releases.
+
+The device schema migration is additive and preserves existing retirement choices. Initialize it as the monitor user before serving the new controls. **Automatic retirement defaults to enabled after 10 days without NAS-received logs.** Set the toggle and threshold under **Devices → Automatic retirement** before resuming collection if another policy is needed. Initialization and a manual inventory refresh do not retire devices; retirement requires fresh, complete collection results and reliable receipt timestamps. Existing inventory entries are not relabeled as newly added.
+
+The deployed upgrade was checked with offline regressions and a real local-model briefing refresh on November 14. The dashboard, device settings, grouped review controls and dated evidence links were verified. No email was resent and no devices were automatically retired during installation. A fresh first-install deployment still needs separate validation.
+
+An optional `refresh_briefing.py` run updates only today's verified saved report, preserving its evidence, window and original generation timestamp. It creates a backup, locks against build and delivery, and rolls back on failure; it does not send email or re-review omitted groups. Use the configured `run.py refresh_briefing` invocation as the monitor user with the publication job stopped, then republish and restore the prior timer state. See [BRIEFINGS.md](BRIEFINGS.md) and [DEVICES.md](DEVICES.md).
+
 ## Saved partial report shutdown update
 
 The coordinator now treats a verified saved partial report with AI batch errors as a finished run. The `ai_error` stop reason qualifies alongside `selected_groups_complete` and `time_budget`; `ollama_unavailable` remains blocked. Report verification, build locking, recency, configured model/server, and both-site checks remain in place. The report retains its errors and partial status.
@@ -18,7 +30,7 @@ For a deliberate future migration:
 
 1. Save the installed source and unit files, and record timer settings. Store any backup containing credentials outside Git.
 2. Disable timers and wait for active build/send/publish jobs to finish. Record what was enabled so it can be restored.
-3. Run the offline suite on the new release. Stage all Python modules as one dependency set; include `efficient_review.py`, `event_rollups.py`, `settings.py`, `dashboard.py`, and `dashboard_progress.py`.
+3. Run the offline suite on the new release. Stage all Python modules as one dependency set; include `efficient_review.py`, `event_rollups.py`, `settings.py`, `dashboard.py`, `dashboard_progress.py`, `report_summary.py`, `issue_families.py`, `device_inventory.py`, `device_dns.py`, and `refresh_briefing.py`.
 4. Create `/etc/ai-monitor/monitor.env` using the actual existing model, endpoints, and timezone. Keep existing SMB/Gmail credentials.
 5. Adopt `run.py` in the installed service `ExecStart` lines or supply equivalent environment variables. Copying only the new modules would otherwise select the portable defaults.
 6. Preserve NGINX ACLs and power settings. The included viewer template is for a fresh loopback-only install. Merge its `/report.html` and strictly dated `/history/YYYY-MM-DD.html` location rules into an existing viewer; keep raw files denied. Create the publication history directory with the same reader group/access as the existing public directory and verify that the service can create/read its files under its actual systemd restrictions.

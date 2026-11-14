@@ -18,6 +18,19 @@ HISTORY_DAYS = 30
 _spec = importlib.util.spec_from_file_location('dashboard_privacy', Path(__file__).with_name('sanitize_logs.py'))
 privacy = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(privacy)
+_family_spec = importlib.util.spec_from_file_location('dashboard_families', Path(__file__).with_name('issue_families.py'))
+families = importlib.util.module_from_spec(_family_spec)
+_family_spec.loader.exec_module(families)
+
+def opening_briefing(report):
+    if not report.get('executive_summary') and not report.get('device_lifecycle'):
+        return ''
+    spec = importlib.util.spec_from_file_location('dashboard_report_html', Path(__file__).with_name('html_report.py'))
+    renderer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(renderer)
+    indexed = {site: renderer.index_site(data) for site, data in report.get('sites', {}).items()}
+    briefing, _ = renderer.briefing(report, indexed)
+    return briefing + renderer.lifecycle_section(report)
 
 def number(value):
     return max(0, int(value or 0))
@@ -83,12 +96,14 @@ def summarize(report):
         sources = data.get('sources', {})
         issues = sum(a.get('classification') == 'issue' for a in assessments.values())
         uncertain = sum(a.get('classification') == 'uncertain' for a in assessments.values())
+        review_items = len(families.group_rows([{'site': site, 'group': groups[key], 'assessment': item}
+            for key, item in assessments.items() if item.get('classification') in ('issue', 'uncertain')]))
         incomplete_data = bool(data.get('warnings') or data.get('rows_not_grouped') or
                                any(s.get('warnings') for s in sources.values()) or
                                not number(data.get('rows_in_window')) or
                                any(str(w).startswith(site+':') for w in report.get('pipeline_warnings', [])))
         sites[site] = dict(records=number(data.get('rows_in_window')), groups=total, reviewed=reviewed,
-                           unreviewed=total-reviewed, issues=issues, uncertain=uncertain,
+                           unreviewed=total-reviewed, issues=issues, uncertain=uncertain, review_items=review_items,
                            errors=len(data.get('ai_errors', [])), data_limited=incomplete_data,
                            rows_not_grouped=number(data.get('rows_not_grouped')),
                            suppressed_records=number(data.get('suppressed_records')), retired_records=number(data.get('retired_records')),
@@ -148,7 +163,7 @@ def site_card(site, data):
         label, tone = 'All records excluded by settings', 'warn'
     coverage = 'Limited data' if data['data_limited'] else 'Data collected'
     review = 'Partial AI review' if data['unreviewed'] or data['errors'] else ('All groups reviewed' if data['groups'] else 'No groups')
-    return '<article class="site-card"><div class="card-top"><h2>'+title+'</h2>'+badge(label,tone)+'</div><div class="big-metrics"><div><strong>'+fmt(data['issues'])+'</strong><span>issue findings</span></div><div><strong>'+fmt(data['uncertain'])+'</strong><span>uncertain findings</span></div><div><strong>'+fmt(data['records'])+'</strong><span>records in window</span></div></div><div class="card-top small"><span>AI review coverage</span><strong>'+fmt(data['reviewed'])+' / '+fmt(data['groups'])+' eligible groups</strong></div>'+meter(data['reviewed'],data['groups'])+'<div class="chips">'+badge(coverage,'warn' if data['data_limited'] else 'muted')+badge(review,'warn' if data['unreviewed'] or data['errors'] else 'muted')+(badge(fmt(data.get('suppressed_records'))+' records suppressed','warn') if data.get('suppressed_groups') else '')+'</div><div class="card-foot"><span>'+fmt(data['reporting_sources'])+' / '+fmt(data['source_count'])+' sources with records</span><span>Last record '+text(when(data['last_record']))+'</span></div></article>'
+    return '<article class="site-card"><div class="card-top"><h2>'+title+'</h2>'+badge(label,tone)+'</div><div class="big-metrics"><div><strong>'+fmt(data['issues'])+'</strong><span>issue findings</span></div><div><strong>'+fmt(data['uncertain'])+'</strong><span>uncertain findings</span></div><div><strong>'+fmt(data['records'])+'</strong><span>records in window</span></div></div><div class="card-top small"><span>AI review coverage</span><strong>'+fmt(data['reviewed'])+' / '+fmt(data['groups'])+' eligible groups</strong></div>'+meter(data['reviewed'],data['groups'])+'<div class="chips">'+badge(coverage,'warn' if data['data_limited'] else 'muted')+badge(review,'warn' if data['unreviewed'] or data['errors'] else 'muted')+(badge(fmt(data.get('suppressed_records'))+' records suppressed','warn') if data.get('suppressed_groups') else '')+'</div><p><a href="/controls/?site='+site+'"><strong>'+fmt(data.get('review_items', data['issues'] + data['uncertain']))+' expandable review items</strong></a> <span class="muted">All original findings retained</span></p><div class="card-foot"><span>'+fmt(data['reporting_sources'])+' / '+fmt(data['source_count'])+' sources with records</span><span>Last record '+text(when(data['last_record']))+'</span></div></article>'
 
 def timeline(base, day, now, job, verification=None):
     folder = Path(base) / 'daily' / day.isoformat()
@@ -208,7 +223,7 @@ def timeline(base, day, now, job, verification=None):
         label,tone='Build failed','bad'
     elif phase=='building':
         label,tone=('Overdue','bad') if duration is not None and duration>job.BUILD_LIMIT_SECONDS+120 else (
-            {'preparing':'Preparing','collecting':'Collecting','grouping':'Grouping','checking_ai':'Checking AI','analyzing':'AI review running','saving':'Saving report'}.get(stage,'Build running'),'muted')
+            {'preparing':'Preparing','collecting':'Collecting','grouping':'Grouping','checking_ai':'Checking AI','analyzing':'AI review running','saving':'Saving report','summarizing':'Writing opening summary'}.get(stage,'Build running'),'muted')
     else:
         label,tone=('Scheduled','muted') if now<due(4) else ('No build recorded','warn')
     detail=(str(round(duration/60,1))+' / 45 min build allowance') if duration is not None else '45-minute build allowance'
@@ -282,4 +297,4 @@ def render(day, now, status, current, history, run_html, example=False):
     actions=('<a class="button" href="/report.html">Open latest report &rarr;</a>' if current else '')+'<a class="button secondary" href="/">Refresh status</a>'
     if SETTINGS['controls_enabled']:
         actions += '<a class="button secondary" href="/controls/">Issues &amp; filters</a><a class="button secondary" href="/controls/devices">Devices</a>'
-    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Home + Work \u00b7 Nightly monitor</title><style>'+CSS+'</style></head><body>'+('<div class="example">EXAMPLE DATA \u00b7 Dashboard preview</div>' if example else '')+'<header class="topbar"><div class="top-inner"><div class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Nightly Monitor</div><nav aria-label="Sections"><a href="#overview">Overview</a><a href="#run">Nightly run</a><a href="#coverage">Coverage</a><a href="#history">History</a></nav></div></header><main><section id="overview"><div class="hero"><div><div class="eyebrow">HOME + WORK / '+day.isoformat()+'</div><h1>Nightly overview</h1><p class="sub">What needs attention, what was reviewed, and how the nightly run went.</p></div><div class="actions">'+actions+'</div></div>'+notice+'<div class="site-grid">'+''.join(site_card(site,sites.get(site)) for site in ('home','work'))+'</div></section><section class="section" id="run"><div class="section-heading"><h2>Nightly run</h2><p>Next build '+text(when(next_build.timestamp()))+'</p></div>'+run_html+'</section><section class="section" id="coverage"><div class="section-heading"><h2>Source coverage</h2><p>Expand a site to inspect the reviewed window</p></div>'+coverage(sites)+'<p class="caption">Counts describe imported records, not unique real-world events. A quiet source does not prove that a device is healthy.</p></section><section class="section" id="history"><div class="section-heading"><h2>Report history</h2><p>Choose a date \u00b7 up to 30 days of saved reports</p></div>'+history_html+'</section><footer class="footer"><span>Publication check: '+text(when(now))+'. Refresh to load the latest publication.</span><span>Updated every 5 minutes \u00b7 Saved log findings, not live device status</span></footer></main></body></html>'
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Home + Work \u00b7 Nightly monitor</title><style>'+CSS+'</style></head><body>'+('<div class="example">EXAMPLE DATA \u00b7 Dashboard preview</div>' if example else '')+'<header class="topbar"><div class="top-inner"><div class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Nightly Monitor</div><nav aria-label="Sections"><a href="#overview">Overview</a><a href="#run">Nightly run</a><a href="#coverage">Coverage</a><a href="#history">History</a></nav></div></header><main><section id="overview"><div class="hero"><div><div class="eyebrow">HOME + WORK / '+day.isoformat()+'</div><h1>Nightly overview</h1><p class="sub">What needs attention, what was reviewed, and how the nightly run went.</p></div><div class="actions">'+actions+'</div></div>'+notice+(opening_briefing(current['report']) if current else '')+'<div class="site-grid">'+''.join(site_card(site,sites.get(site)) for site in ('home','work'))+'</div></section><section class="section" id="run"><div class="section-heading"><h2>Nightly run</h2><p>Next build '+text(when(next_build.timestamp()))+'</p></div>'+run_html+'</section><section class="section" id="coverage"><div class="section-heading"><h2>Source coverage</h2><p>Expand a site to inspect the reviewed window</p></div>'+coverage(sites)+'<p class="caption">Counts describe imported records, not unique real-world events. A quiet source does not prove that a device is healthy.</p></section><section class="section" id="history"><div class="section-heading"><h2>Report history</h2><p>Choose a date \u00b7 up to 30 days of saved reports</p></div>'+history_html+'</section><footer class="footer"><span>Publication check: '+text(when(now))+'. Refresh to load the latest publication.</span><span>Updated every 5 minutes \u00b7 Saved log findings, not live device status</span></footer></main></body></html>'

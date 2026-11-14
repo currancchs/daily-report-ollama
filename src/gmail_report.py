@@ -157,7 +157,9 @@ def send_report(config, report_path, state_dir, max_age_hours=2, retry=False,
         if daily:
             label = {'daily_complete': 'DAILY', 'daily_partial': 'DAILY - PIPELINE ISSUE',
                      'daily_failed': 'DAILY - REPORT FAILED'}[metadata['status']]
-            if metadata['status'] == 'daily_complete' and metadata.get('review_limited'):
+            if metadata['status'] != 'daily_failed' and metadata.get('pipeline_issue') is False and metadata.get('review_limited'):
+                label = 'DAILY - LIMITED REVIEW'
+            elif metadata['status'] == 'daily_complete' and metadata.get('review_limited'):
                 label = 'DAILY - LIMITED REVIEW'
         message["Subject"] = "[AI Logs][" + label + "] Home + Work - " + report_date
         message["From"] = username

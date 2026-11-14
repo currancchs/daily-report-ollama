@@ -250,7 +250,7 @@ def collect(base, sites=("home", "work"), auth_dir=Path("/etc/ai-monitor"), gett
         save_json(registry_path, registry)
     if devices.database_path(base).exists() or (base/'devices/enabled').exists():
         try:
-            devices.refresh(base)
+            devices.refresh(base, collection={site: registry['sites'][site] for site in sites})
         except Exception as error:
             warning = 'Device inventory refresh failed (' + type(error).__name__ + '); inspect the coordinator.'
             for site in sites:
